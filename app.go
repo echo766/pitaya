@@ -222,9 +222,13 @@ func SetLogger(l logger.Logger) {
 	logger.Log = l
 }
 
-// GetServerID returns the generated server id
-func GetServerID() string {
+// GetServerUniqueID returns the generated server id
+func GetServerUniqueID() string {
 	return app.server.ID
+}
+
+func GetServerID() string {
+	return app.server.Metadata[constants.ServerIDKey]
 }
 
 // GetConfig gets the pitaya config instance

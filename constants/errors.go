@@ -88,4 +88,5 @@ var (
 	ErrHandleReqTimeout               = errors.New("timeout to handle request")
 	ErrActorStopped                   = errors.New("actor stopped")
 	ErrInvalidRoute                   = errors.New("invalid route")
+	ErrPlayerNotLogin                 = errors.New("player not logged in")
 )

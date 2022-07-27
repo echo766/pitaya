@@ -9,6 +9,7 @@ import (
 	"github.com/echo766/pitaya/acceptor"
 	"github.com/echo766/pitaya/component"
 	"github.com/echo766/pitaya/examples/demo/game/logic/avatar"
+	"github.com/echo766/pitaya/examples/demo/game/logic/gate"
 	"github.com/echo766/pitaya/serialize/json"
 	"github.com/spf13/viper"
 )
@@ -24,6 +25,8 @@ func main() {
 		component.WithName("avatarmgr"),
 		component.WithNameFunc(strings.ToLower),
 	)
+
+	pitaya.RegisterModule(gate.NewRouteMgr(), "route")
 
 	log.SetFlags(log.LstdFlags | log.Llongfile)
 
