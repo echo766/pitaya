@@ -85,6 +85,9 @@ const (
 	// GRPCPortKey is the key for grpc port on server metadata
 	GRPCPortKey = "grpcPort"
 
+	// ServerID is the key for server id on server metadata
+	ServerID = "serverID"
+
 	// GRPCExternalPortKey is the key for grpc external port on server metadata
 	GRPCExternalPortKey = "grpc-external-port"
 
