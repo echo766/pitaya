@@ -55,6 +55,7 @@ import (
 	"github.com/echo766/pitaya/tracing"
 	"github.com/echo766/pitaya/worker"
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
 )
@@ -93,6 +94,7 @@ type App struct {
 	serviceDiscovery cluster.ServiceDiscovery
 	startAt          time.Time
 	worker           *worker.Worker
+	db               *sqlx.DB
 }
 
 var (
@@ -290,6 +292,14 @@ func GetServers() []*cluster.Server {
 // AddMetricsReporter to be used
 func AddMetricsReporter(mr metrics.Reporter) {
 	app.metricsReporters = append(app.metricsReporters, mr)
+}
+
+func SetDB(db *sqlx.DB) {
+	app.db = db
+}
+
+func GetDB() *sqlx.DB {
+	return app.db
 }
 
 func startDefaultSD() {
