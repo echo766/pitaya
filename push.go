@@ -29,6 +29,25 @@ import (
 	"github.com/echo766/pitaya/util"
 )
 
+func SendPushToUser(route string, v interface{}, uid string, frontId string, frontType string) error {
+	data, err := util.SerializeOrRaw(app.serializer, v)
+	if err != nil {
+		return err
+	}
+
+	if frontId == "" {
+		return constants.ErrFrontendTypeNotSpecified
+	}
+
+	push := &protos.Push{
+		Route: route,
+		Uid:   uid,
+		Data:  data,
+	}
+
+	return app.rpcClient.SendPush(uid, &cluster.Server{ID: frontId, Type: frontType}, push)
+}
+
 // SendPushToUsers sends a message to the given list of users
 func SendPushToUsers(route string, v interface{}, uids []string, frontendType string) ([]string, error) {
 	data, err := util.SerializeOrRaw(app.serializer, v)
