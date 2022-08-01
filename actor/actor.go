@@ -3,6 +3,7 @@ package actor
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
 	"github.com/echo766/pitaya/constants"
 	"github.com/echo766/pitaya/logger"
@@ -16,8 +17,12 @@ const (
 )
 
 const MAIL_BOX_SIZE = 50
+const TICK_INTERVAL = 100 * time.Millisecond
 
 type (
+	closeCallback func()
+	tickCallback  func()
+
 	jobRet struct {
 		result interface{}
 		err    error
@@ -37,6 +42,8 @@ type (
 		GetState() int32
 
 		Actor() Actor
+		OnClose(closeCallback)
+		OnTick(tickCallback)
 	}
 
 	Impl struct {
@@ -44,6 +51,9 @@ type (
 		state    int32
 		stopSign chan bool
 		stopped  chan bool
+		closeFn  []closeCallback
+		tickFn   []tickCallback
+		tick     *time.Ticker
 	}
 )
 
@@ -51,6 +61,7 @@ func (a *Impl) Init() {
 	a.jobs = make(chan job, MAIL_BOX_SIZE)
 	a.stopSign = make(chan bool)
 	a.stopped = make(chan bool)
+	a.tick = time.NewTicker(TICK_INTERVAL)
 }
 
 func (a *Impl) Stop() {
@@ -118,14 +129,37 @@ func (a *Impl) setState(state int32) {
 }
 
 func (a *Impl) loop() bool {
+
 	select {
 	case <-a.stopSign:
 		return true
 	case j := <-a.jobs:
 		a.consume(j)
+	case <-a.tick.C:
+		for _, v := range a.tickFn {
+			a.callOnTick(v)
+		}
 	}
 
 	return false
+}
+
+func (a *Impl) callOnTick(f tickCallback) {
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Log.Warnf("actor tick callback trace. %w", err)
+		}
+	}()
+	f()
+}
+
+func (a *Impl) callOnClose(f closeCallback) {
+	defer func() {
+		if err := recover(); err != nil {
+			logger.Log.Warnf("actor close callback trace. %w", err)
+		}
+	}()
+	f()
 }
 
 func (a *Impl) run() {
@@ -133,6 +167,10 @@ func (a *Impl) run() {
 		if a.loop() {
 			break
 		}
+	}
+
+	for _, v := range a.closeFn {
+		a.callOnClose(v)
 	}
 
 	a.clear()
@@ -161,4 +199,12 @@ func (a *Impl) consume(j job) {
 
 func (a *Impl) Actor() Actor {
 	return a
+}
+
+func (a *Impl) OnClose(cb closeCallback) {
+	a.closeFn = append(a.closeFn, cb)
+}
+
+func (a *Impl) OnTick(cb tickCallback) {
+	a.tickFn = append(a.tickFn, cb)
 }
