@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	ASF_NULL    = iota
-	ASF_RUN     = iota
-	ASF_STOPPED = iota
-	ASF_STOPING = iota
+	ASF_NULL     = iota
+	ASF_RUN      = iota
+	ASF_STOPPED  = iota
+	ASF_STOPPING = iota
 )
 
 const MAIL_BOX_SIZE = 50
@@ -44,6 +44,8 @@ type (
 		Actor() Actor
 		OnClose(closeCallback)
 		OnTick(tickCallback)
+
+		AfterFunc(time.Duration, func()) *time.Timer
 	}
 
 	Impl struct {
@@ -65,13 +67,13 @@ func (a *Impl) Init() {
 }
 
 func (a *Impl) Stop() {
-	if atomic.CompareAndSwapInt32(&a.state, ASF_RUN, ASF_STOPING) {
+	if atomic.CompareAndSwapInt32(&a.state, ASF_RUN, ASF_STOPPING) {
 		a.stopSign <- true
 	}
 }
 
 func (a *Impl) Wait() {
-	if atomic.CompareAndSwapInt32(&a.state, ASF_STOPING, ASF_STOPPED) {
+	if atomic.CompareAndSwapInt32(&a.state, ASF_STOPPING, ASF_STOPPED) {
 		<-a.stopped
 	}
 }
@@ -112,7 +114,7 @@ func (a *Impl) Push(ctx context.Context, fn func() (interface{}, error)) error {
 		}
 	}()
 
-	if a.GetState() != ASF_RUN {
+	if a.GetState() == ASF_STOPPED || a.GetState() == ASF_STOPPING {
 		return constants.ErrActorStopped
 	}
 
@@ -207,4 +209,22 @@ func (a *Impl) OnClose(cb closeCallback) {
 
 func (a *Impl) OnTick(cb tickCallback) {
 	a.tickFn = append(a.tickFn, cb)
+}
+
+func (a Impl) AfterFunc(d time.Duration, fn func()) *time.Timer {
+	cb := func() (interface{}, error) {
+		defer func() {
+			if err := recover(); err != nil {
+				logger.Log.Warnf("actor close callback trace. %w", err)
+			}
+		}()
+		fn()
+		return nil, nil
+	}
+
+	timer := time.AfterFunc(d, func() {
+		a.Push(context.Background(), cb)
+	})
+
+	return timer
 }

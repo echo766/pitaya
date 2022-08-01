@@ -4,11 +4,13 @@ import (
 	"context"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/echo766/pitaya"
 	"github.com/echo766/pitaya/actor"
 	"github.com/echo766/pitaya/component"
 	"github.com/echo766/pitaya/constants"
+	"github.com/echo766/pitaya/logger"
 )
 
 type AvatarMgr struct {
@@ -25,6 +27,10 @@ func (mgr *AvatarMgr) Init() {
 	mgr.Base.Init()
 	mgr.lock = &sync.Mutex{}
 	mgr.actors = actor.NewActorGroup(mgr)
+
+	mgr.AfterFunc(5*time.Second, func() {
+		logger.Log.Info("AvatarMgr.Init timer")
+	})
 }
 
 func (mgr *AvatarMgr) GetSubActor(ctx context.Context) (actor.Actor, error) {
