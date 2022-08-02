@@ -50,7 +50,10 @@ func NewRoute(server, service, method string, Sub ...string) *Route {
 
 // String transforms the route into a string
 func (r *Route) String() string {
-	if len(r.Sub) == 0 {
+	if len(r.SvType) == 0 {
+		return r.Short()
+	}
+	if !r.HasSub() {
 		return fmt.Sprintf("%s.%s.%s", r.SvType, r.Service, r.Method)
 	}
 	return fmt.Sprintf("%s.%s.%s.%s", r.SvType, r.Service, strings.Join(r.Sub, "."), r.Method)
@@ -78,14 +81,16 @@ func Decode(route string) (*Route, error) {
 		}
 	}
 	l := len(r)
-	if l < 3 {
+	if l < 2 {
 		logger.Log.Errorf("invalid route: " + route)
 		return nil, ErrInvalidRoute
 	}
-
-	if l == 3 {
+	switch l {
+	case 2:
+		return NewRoute("", r[0], r[1]), nil
+	case 3:
 		return NewRoute(r[0], r[1], r[2]), nil
+	default:
+		return NewRoute(r[0], r[1], r[l-1], r[2:l-1]...), nil
 	}
-
-	return NewRoute(r[0], r[1], r[l-1], r[2:l-1]...), nil
 }
