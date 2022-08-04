@@ -161,7 +161,7 @@ func SendPushToUsers(route string, v interface{}, uids []string, frontendType st
 	return DefaultApp.SendPushToUsers(route, v, uids, frontendType)
 }
 
-func SendPushToUser(route string, v interface{}, uid string, frontId string, frontType string) error {
+func SendPushToUser(route string, v interface{}, uid string, frontId string, frontendType string) error {
 	return DefaultApp.SendPushToUser(route, v, uid, frontId, frontendType)
 }
 
