@@ -34,6 +34,7 @@ import (
 	"github.com/echo766/pitaya/session"
 	"github.com/echo766/pitaya/worker"
 	"github.com/golang/protobuf/proto"
+	"github.com/jmoiron/sqlx"
 	"github.com/spf13/viper"
 )
 
@@ -225,4 +226,12 @@ func RegisterModuleBefore(module interfaces.Module, name string) error {
 
 func GetModule(name string) (interfaces.Module, error) {
 	return DefaultApp.GetModule(name)
+}
+
+func SetDB(db *sqlx.DB) {
+	DefaultApp.SetDB(db)
+}
+
+func GetDB() *sqlx.DB {
+	return DefaultApp.GetDB()
 }

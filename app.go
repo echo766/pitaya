@@ -55,6 +55,7 @@ import (
 	"github.com/echo766/pitaya/tracing"
 	"github.com/echo766/pitaya/worker"
 	"github.com/golang/protobuf/proto"
+	"github.com/jmoiron/sqlx"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -127,6 +128,9 @@ type Pitaya interface {
 	RegisterModuleAfter(module interfaces.Module, name string) error
 	RegisterModuleBefore(module interfaces.Module, name string) error
 	GetModule(name string) (interfaces.Module, error)
+
+	SetDB(db *sqlx.DB)
+	GetDB() *sqlx.DB
 }
 
 // App is the base app struct
@@ -156,6 +160,7 @@ type App struct {
 	modulesArr       []moduleWrapper
 	groups           groups.GroupService
 	sessionPool      session.SessionPool
+	db               *sqlx.DB
 }
 
 // NewApp is the base constructor for a pitaya app instance
@@ -260,6 +265,14 @@ func (app *App) GetServers() []*cluster.Server {
 // initialization.
 func (app *App) IsRunning() bool {
 	return app.running
+}
+
+func (app *App) SetDB(db *sqlx.DB) {
+	app.db = db
+}
+
+func (app *App) GetDB() *sqlx.DB {
+	return app.db
 }
 
 // SetLogger logger setter
