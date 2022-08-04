@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/echo766/pitaya/component"
-	"github.com/spf13/viper"
+	"github.com/echo766/pitaya/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,47 +41,41 @@ func (m *MyComp) Shutdown() {
 	m.running = false
 }
 
-func resetComps() {
-	handlerComp = make([]regComp, 0)
-	remoteComp = make([]regComp, 0)
-}
-
 func TestRegister(t *testing.T) {
-	resetComps()
+	config := config.NewDefaultBuilderConfig()
+	app := NewDefaultApp(true, "testtype", Cluster, map[string]string{}, *config).(*App)
 	b := &component.Base{}
-	Register(b)
-	assert.Equal(t, 1, len(handlerComp))
-	assert.Equal(t, regComp{b, nil}, handlerComp[0])
+	app.Register(b)
+	assert.Equal(t, 1, len(app.handlerComp))
+	assert.Equal(t, regComp{b, nil}, app.handlerComp[0])
 }
 
 func TestRegisterRemote(t *testing.T) {
-	resetComps()
+	config := config.NewDefaultBuilderConfig()
+	app := NewDefaultApp(true, "testtype", Cluster, map[string]string{}, *config).(*App)
+	before := app.remoteComp
 	b := &component.Base{}
-	RegisterRemote(b)
-	assert.Equal(t, 1, len(remoteComp))
-	assert.Equal(t, regComp{b, nil}, remoteComp[0])
+	app.RegisterRemote(b)
+	assert.Equal(t, len(before)+1, len(app.remoteComp))
+	assert.Equal(t, regComp{b, nil}, app.remoteComp[len(before)])
 }
 
 func TestStartupComponents(t *testing.T) {
-	initApp()
-	resetComps()
-	Configure(true, "testtype", Standalone, map[string]string{}, viper.New())
+	app := NewDefaultApp(true, "testtype", Standalone, map[string]string{}, *config.NewDefaultBuilderConfig()).(*App)
 
-	Register(&MyComp{})
-	RegisterRemote(&MyComp{})
-	startupComponents()
-	assert.Equal(t, true, handlerComp[0].comp.(*MyComp).running)
+	app.Register(&MyComp{})
+	app.RegisterRemote(&MyComp{})
+	app.startupComponents()
+	assert.Equal(t, true, app.handlerComp[0].comp.(*MyComp).running)
 }
 
 func TestShutdownComponents(t *testing.T) {
-	resetComps()
-	initApp()
-	Configure(true, "testtype", Standalone, map[string]string{}, viper.New())
+	app := NewDefaultApp(true, "testtype", Standalone, map[string]string{}, *config.NewDefaultBuilderConfig()).(*App)
 
-	Register(&MyComp{})
-	RegisterRemote(&MyComp{})
-	startupComponents()
+	app.Register(&MyComp{})
+	app.RegisterRemote(&MyComp{})
+	app.startupComponents()
 
-	shutdownComponents()
-	assert.Equal(t, false, handlerComp[0].comp.(*MyComp).running)
+	app.shutdownComponents()
+	assert.Equal(t, false, app.handlerComp[0].comp.(*MyComp).running)
 }

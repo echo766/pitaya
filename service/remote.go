@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sync"
 
 	"github.com/golang/protobuf/proto"
 
@@ -39,6 +38,7 @@ import (
 	"github.com/echo766/pitaya/docgenerator"
 	e "github.com/echo766/pitaya/errors"
 	"github.com/echo766/pitaya/logger"
+	"github.com/echo766/pitaya/pipeline"
 	"github.com/echo766/pitaya/protos"
 	"github.com/echo766/pitaya/route"
 	"github.com/echo766/pitaya/router"
@@ -50,6 +50,7 @@ import (
 
 // RemoteService struct
 type RemoteService struct {
+	baseService
 	rpcServer              cluster.RPCServer
 	serviceDiscovery       cluster.ServiceDiscovery
 	serializer             serialize.Serializer
@@ -60,7 +61,9 @@ type RemoteService struct {
 	messageEncoder         message.Encoder
 	server                 *cluster.Server // server obj
 	remoteBindingListeners []cluster.RemoteBindingListener
-	responsePool           *sync.Pool
+	sessionPool            session.SessionPool
+	handlerPool            *HandlerPool
+	remotes                map[string]*component.Remote // all remote method
 }
 
 // NewRemoteService creates and return a new RemoteService
@@ -73,8 +76,11 @@ func NewRemoteService(
 	router *router.Router,
 	messageEncoder message.Encoder,
 	server *cluster.Server,
+	sessionPool session.SessionPool,
+	handlerHooks *pipeline.HandlerHooks,
+	handlerPool *HandlerPool,
 ) *RemoteService {
-	return &RemoteService{
+	remote := &RemoteService{
 		services:               make(map[string]*component.Service),
 		rpcClient:              rpcClient,
 		rpcServer:              rpcServer,
@@ -85,24 +91,24 @@ func NewRemoteService(
 		messageEncoder:         messageEncoder,
 		server:                 server,
 		remoteBindingListeners: make([]cluster.RemoteBindingListener, 0),
-		responsePool: &sync.Pool{
-			New: func() interface{} {
-				return new(protos.Response)
-			},
-		},
+		sessionPool:            sessionPool,
+		handlerPool:            handlerPool,
+		remotes:                make(map[string]*component.Remote),
 	}
-}
 
-var remotes = make(map[string]*component.Remote) // all remote method
+	remote.handlerHooks = handlerHooks
+
+	return remote
+}
 
 func (r *RemoteService) remoteProcess(
 	ctx context.Context,
 	server *cluster.Server,
-	a *agent.Agent,
+	a agent.Agent,
 	route *route.Route,
 	msg *message.Message,
 ) {
-	res, err := r.remoteCall(ctx, server, protos.RPCType_Sys, route, a.Session, msg)
+	res, err := r.remoteCall(ctx, server, protos.RPCType_Sys, route, a.GetSession(), msg)
 	switch msg.Type {
 	case message.Request:
 		if err != nil {
@@ -110,7 +116,7 @@ func (r *RemoteService) remoteProcess(
 			a.AnswerWithError(ctx, msg.ID, err)
 			return
 		}
-		err := a.Session.ResponseMID(ctx, msg.ID, res.Data)
+		err := a.GetSession().ResponseMID(ctx, msg.ID, res.Data)
 		if err != nil {
 			logger.Log.Errorf("Failed to respond to remote server: %s", err.Error())
 			a.AnswerWithError(ctx, msg.ID, err)
@@ -135,9 +141,7 @@ func (r *RemoteService) AddRemoteBindingListener(bindingListener cluster.RemoteB
 func (r *RemoteService) Call(ctx context.Context, req *protos.Request) (*protos.Response, error) {
 	c, err := util.GetContextFromRequest(req, r.server.ID)
 	c = util.StartSpanFromRequest(c, r.server.ID, req.GetMsg().GetRoute())
-	res := r.responsePool.Get().(*protos.Response)
-	res.Reset()
-	defer r.responsePool.Put(res)
+	var res *protos.Response
 	if err != nil {
 		res = &protos.Response{
 			Error: &protos.Error{
@@ -146,7 +150,7 @@ func (r *RemoteService) Call(ctx context.Context, req *protos.Request) (*protos.
 			},
 		}
 	} else {
-		processRemoteMessage(c, req, res, r)
+		res = processRemoteMessage(c, req, r)
 	}
 
 	if res.Error != nil {
@@ -154,7 +158,7 @@ func (r *RemoteService) Call(ctx context.Context, req *protos.Request) (*protos.
 	}
 
 	defer tracing.FinishSpan(c, err)
-	return &*res, nil
+	return res, nil
 }
 
 // SessionBindRemote is called when a remote server binds a user session and want us to acknowledge it
@@ -170,7 +174,7 @@ func (r *RemoteService) SessionBindRemote(ctx context.Context, msg *protos.BindM
 // PushToUser sends a push to user
 func (r *RemoteService) PushToUser(ctx context.Context, push *protos.Push) (*protos.Response, error) {
 	logger.Log.Debugf("sending push to user %s: %v", push.GetUid(), string(push.Data))
-	s := session.GetSessionByUID(push.GetUid())
+	s := r.sessionPool.GetSessionByUID(push.GetUid())
 	if s != nil {
 		err := s.Push(push.Route, push.Data)
 		if err != nil {
@@ -186,7 +190,7 @@ func (r *RemoteService) PushToUser(ctx context.Context, push *protos.Push) (*pro
 // KickUser sends a kick to user
 func (r *RemoteService) KickUser(ctx context.Context, kick *protos.KickMsg) (*protos.KickAnswer, error) {
 	logger.Log.Debugf("sending kick to user %s", kick.GetUserId())
-	s := session.GetSessionByUID(kick.GetUserId())
+	s := r.sessionPool.GetSessionByUID(kick.GetUserId())
 	if s != nil {
 		err := s.Kick(ctx)
 		if err != nil {
@@ -203,9 +207,10 @@ func (r *RemoteService) KickUser(ctx context.Context, kick *protos.KickMsg) (*pr
 func (r *RemoteService) DoRPC(ctx context.Context, serverID string, route *route.Route, protoData []byte) (*protos.Response, error) {
 	msg := &message.Message{
 		Type:  message.Request,
-		Route: route.String(),
+		Route: route.Short(),
 		Data:  protoData,
 	}
+
 	if serverID == "" {
 		return r.remoteCall(ctx, nil, protos.RPCType_User, route, nil, msg)
 	}
@@ -265,66 +270,73 @@ func (r *RemoteService) Register(comp component.Component, opts []component.Opti
 	r.services[s.Name] = s
 	// register all remotes
 	for name, remote := range s.Remotes {
-		remotes[fmt.Sprintf("%s.%s", s.Name, name)] = remote
+		r.remotes[fmt.Sprintf("%s.%s", s.Name, name)] = remote
 	}
 
 	return nil
 }
 
-func processRemoteMessage(ctx context.Context, req *protos.Request, res *protos.Response, r *RemoteService) {
+func processRemoteMessage(ctx context.Context, req *protos.Request, r *RemoteService) *protos.Response {
 	rt, err := route.Decode(req.GetMsg().GetRoute())
 	if err != nil {
-		res.Error = &protos.Error{
-			Code: e.ErrBadRequestCode,
-			Msg:  "cannot decode route",
-			Metadata: map[string]string{
-				"route": req.GetMsg().GetRoute(),
+		response := &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrBadRequestCode,
+				Msg:  "cannot decode route",
+				Metadata: map[string]string{
+					"route": req.GetMsg().GetRoute(),
+				},
 			},
 		}
-		return
+		return response
 	}
 
 	switch {
 	case req.Type == protos.RPCType_Sys:
-		r.handleRPCSys(ctx, req, res, rt)
-		return
+		return r.handleRPCSys(ctx, req, rt)
 	case req.Type == protos.RPCType_User:
-		r.handleRPCUser(ctx, req, res, rt)
-		return
+		return r.handleRPCUser(ctx, req, rt)
 	default:
-		res.Error = &protos.Error{
-			Code: e.ErrBadRequestCode,
-			Msg:  "invalid rpc type",
-			Metadata: map[string]string{
-				"route": req.GetMsg().GetRoute(),
+		return &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrBadRequestCode,
+				Msg:  "invalid rpc type",
+				Metadata: map[string]string{
+					"route": req.GetMsg().GetRoute(),
+				},
 			},
 		}
-		return
 	}
 }
 
-func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, res *protos.Response, rt *route.Route) {
-	remote, ok := remotes[rt.Short()]
+func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, rt *route.Route) *protos.Response {
+	response := &protos.Response{}
+
+	remote, ok := r.remotes[rt.Short()]
 	if !ok {
-		logger.Log.Warnf("pitaya/remote: %s not found", rt.String())
-		res.Error = &protos.Error{
-			Code: e.ErrNotFoundCode,
-			Msg:  "route not found",
-			Metadata: map[string]string{
-				"route": rt.String(),
+		logger.Log.Warnf("pitaya/remote: %s not found", rt.Short())
+		response := &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrNotFoundCode,
+				Msg:  "route not found",
+				Metadata: map[string]string{
+					"route": rt.Short(),
+				},
 			},
 		}
-		return
+		return response
 	}
 	params := []reflect.Value{remote.Receiver, reflect.ValueOf(ctx)}
 	if remote.HasArgs {
 		arg, err := unmarshalRemoteArg(remote, req.GetMsg().GetData())
 		if err != nil {
-			res.Error = &protos.Error{
-				Code: e.ErrBadRequestCode,
-				Msg:  err.Error(),
+			response := &protos.Response{
+				Error: &protos.Error{
+					Code: e.ErrBadRequestCode,
+					Msg:  err.Error(),
+				},
 			}
-			return
+			return response
 		}
 		params = append(params, reflect.ValueOf(arg))
 	}
@@ -339,43 +351,51 @@ func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, 
 	})
 
 	if err != nil {
-		res.Error = &protos.Error{
-			Code: e.ErrUnknownCode,
-			Msg:  err.Error(),
+		response := &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrUnknownCode,
+				Msg:  err.Error(),
+			},
 		}
 		if val, ok := err.(*e.Error); ok {
-			res.Error.Code = val.Code
+			response.Error.Code = val.Code
 			if val.Metadata != nil {
-				res.Error.Metadata = val.Metadata
+				response.Error.Metadata = val.Metadata
 			}
 		}
-		return
+		return response
 	}
 
 	var b []byte
 	if ret != nil {
 		pb, ok := ret.(proto.Message)
 		if !ok {
-			res.Error = &protos.Error{
-				Code: e.ErrUnknownCode,
-				Msg:  constants.ErrWrongValueType.Error(),
+			response := &protos.Response{
+				Error: &protos.Error{
+					Code: e.ErrUnknownCode,
+					Msg:  constants.ErrWrongValueType.Error(),
+				},
 			}
-			return
+			return response
 		}
 		if b, err = proto.Marshal(pb); err != nil {
-			res.Error = &protos.Error{
-				Code: e.ErrUnknownCode,
-				Msg:  err.Error(),
+			response := &protos.Response{
+				Error: &protos.Error{
+					Code: e.ErrUnknownCode,
+					Msg:  err.Error(),
+				},
 			}
-			return
+			return response
 		}
 	}
 
-	res.Data = b
+	response.Data = b
+	return response
 }
 
-func (r *RemoteService) handleRPCSys(ctx context.Context, req *protos.Request, res *protos.Response, rt *route.Route) {
+func (r *RemoteService) handleRPCSys(ctx context.Context, req *protos.Request, rt *route.Route) *protos.Response {
 	reply := req.GetMsg().GetReply()
+	response := &protos.Response{}
 	// (warning) a new agent is created for every new request
 	a, err := agent.NewRemote(
 		req.GetSession(),
@@ -386,32 +406,38 @@ func (r *RemoteService) handleRPCSys(ctx context.Context, req *protos.Request, r
 		r.serviceDiscovery,
 		req.FrontendID,
 		r.messageEncoder,
+		r.sessionPool,
 	)
 	if err != nil {
 		logger.Log.Warn("pitaya/handler: cannot instantiate remote agent")
-		res.Error = &protos.Error{
-			Code: e.ErrInternalCode,
-			Msg:  err.Error(),
+		response := &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrInternalCode,
+				Msg:  err.Error(),
+			},
 		}
-		return
+		return response
 	}
 
-	ret, err := processHandlerMessage(ctx, rt, r.serializer, a.Session, req.GetMsg().GetData(), req.GetMsg().GetType(), true)
+	ret, err := r.handlerPool.ProcessHandlerMessage(ctx, rt, r.serializer, r.handlerHooks, a.Session, req.GetMsg().GetData(), req.GetMsg().GetType(), true)
 	if err != nil {
 		logger.Log.Warnf(err.Error())
-		res.Error = &protos.Error{
-			Code: e.ErrUnknownCode,
-			Msg:  err.Error(),
+		response = &protos.Response{
+			Error: &protos.Error{
+				Code: e.ErrUnknownCode,
+				Msg:  err.Error(),
+			},
 		}
 		if val, ok := err.(*e.Error); ok {
-			res.Error.Code = val.Code
+			response.Error.Code = val.Code
 			if val.Metadata != nil {
-				res.Error.Metadata = val.Metadata
+				response.Error.Metadata = val.Metadata
 			}
 		}
 	} else {
-		res.Data = ret
+		response = &protos.Response{Data: ret}
 	}
+	return response
 }
 
 func (r *RemoteService) remoteCall(
@@ -419,7 +445,7 @@ func (r *RemoteService) remoteCall(
 	server *cluster.Server,
 	rpcType protos.RPCType,
 	route *route.Route,
-	session *session.Session,
+	session session.Session,
 	msg *message.Message,
 ) (*protos.Response, error) {
 	svType := route.SvType
@@ -436,7 +462,7 @@ func (r *RemoteService) remoteCall(
 
 	res, err := r.rpcClient.Call(ctx, rpcType, route, session, msg, target)
 	if err != nil {
-		logger.Log.Errorf("error making call to target with id %s route %s and host %s: %w", target.ID, route.String(), target.Hostname, err)
+		logger.Log.Errorf("error making call to target with id %s, route %s and host %s: %w", target.ID, route.String(), target.Hostname, err)
 		return nil, err
 	}
 	return res, err
@@ -444,7 +470,7 @@ func (r *RemoteService) remoteCall(
 
 // DumpServices outputs all registered services
 func (r *RemoteService) DumpServices() {
-	for name := range remotes {
+	for name := range r.remotes {
 		logger.Log.Infof("registered remote %s", name)
 	}
 }

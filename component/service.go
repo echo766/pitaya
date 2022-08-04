@@ -54,8 +54,8 @@ type (
 		Receiver reflect.Value       // receiver of methods for the service
 		Handlers map[string]*Handler // registered methods
 		Remotes  map[string]*Remote  // registered remote methods
-		Events   map[string]*Handler // registered methods
 		Options  options             // options
+		Events   map[string]*Handler // registered methods
 	}
 )
 

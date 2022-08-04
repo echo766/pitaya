@@ -38,11 +38,11 @@ func TestNewStatsdReporter(t *testing.T) {
 	defer ctrl.Finish()
 	mockClient := metricsmocks.NewMockClient(ctrl)
 
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{}, mockClient)
+	cfg := config.NewDefaultStatsdConfig()
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
 	assert.NoError(t, err)
 	assert.Equal(t, mockClient, sr.client)
-	assert.Equal(t, float64(cfg.GetInt("pitaya.metrics.statsd.rate")), sr.rate)
+	assert.Equal(t, float64(cfg.Statsd.Rate), sr.rate)
 	assert.Equal(t, "svType", sr.serverType)
 }
 
@@ -51,10 +51,11 @@ func TestReportLatency(t *testing.T) {
 	defer ctrl.Finish()
 	mockClient := metricsmocks.NewMockClient(ctrl)
 
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{
+	cfg := config.NewDefaultStatsdConfig()
+	cfg.ConstLabels = map[string]string{
 		"defaultTag": "value",
-	}, mockClient)
+	}
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
 	assert.NoError(t, err)
 
 	expectedDuration, err := time.ParseDuration("200ms")
@@ -85,8 +86,8 @@ func TestReportLatencyError(t *testing.T) {
 	defer ctrl.Finish()
 	mockClient := metricsmocks.NewMockClient(ctrl)
 
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{}, mockClient)
+	cfg := config.NewDefaultStatsdConfig()
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
 	assert.NoError(t, err)
 
 	expectedError := errors.New("some error")
@@ -101,10 +102,11 @@ func TestReportCount(t *testing.T) {
 	defer ctrl.Finish()
 	mockClient := metricsmocks.NewMockClient(ctrl)
 
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{
+	cfg := config.NewDefaultStatsdConfig()
+	cfg.ConstLabels = map[string]string{
 		"defaultTag": "value",
-	}, mockClient)
+	}
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
 	assert.NoError(t, err)
 
 	expectedCount := 123
@@ -125,15 +127,32 @@ func TestReportCount(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestReportCountError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockClient := metricsmocks.NewMockClient(ctrl)
+
+	cfg := config.NewDefaultStatsdConfig()
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
+	assert.NoError(t, err)
+
+	expectedError := errors.New("some error")
+	mockClient.EXPECT().Count(gomock.Any(), gomock.Any(), gomock.Any(), sr.rate).Return(expectedError)
+
+	err = sr.ReportCount("123", map[string]string{}, float64(123))
+	assert.Equal(t, expectedError, err)
+}
+
 func TestReportGauge(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := metricsmocks.NewMockClient(ctrl)
 
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{
+	cfg := config.NewDefaultStatsdConfig()
+	cfg.ConstLabels = map[string]string{
 		"defaultTag": "value",
-	}, mockClient)
+	}
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
 	assert.NoError(t, err)
 
 	expectedValue := 123.1
@@ -154,29 +173,16 @@ func TestReportGauge(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestReportCountError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockClient := metricsmocks.NewMockClient(ctrl)
-
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{}, mockClient)
-	assert.NoError(t, err)
-
-	expectedError := errors.New("some error")
-	mockClient.EXPECT().Count(gomock.Any(), gomock.Any(), gomock.Any(), sr.rate).Return(expectedError)
-
-	err = sr.ReportCount("123", map[string]string{}, float64(123))
-	assert.Equal(t, expectedError, err)
-}
-
 func TestReportGaugeError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := metricsmocks.NewMockClient(ctrl)
 
-	cfg := config.NewConfig()
-	sr, err := NewStatsdReporter(cfg, "svType", map[string]string{}, mockClient)
+	cfg := config.NewDefaultStatsdConfig()
+	cfg.ConstLabels = map[string]string{
+		"defaultTag": "value",
+	}
+	sr, err := NewStatsdReporter(*cfg, "svType", mockClient)
 	assert.NoError(t, err)
 
 	expectedError := errors.New("some error")

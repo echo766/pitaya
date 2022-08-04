@@ -20,17 +20,17 @@ Notify handlers return nothing, while request handlers must return:
 
 ### Registering handlers
 
-Handlers must be explicitly registered by the application by calling `pitaya.Register` with a instance of the handler component. The handler's name can be defined by calling `pitaya/component`.WithName(`"handlerName"`) and the methods can be renamed by using `pitaya/component`.WithNameFunc(`func(string) string`).
+Handlers must be explicitly registered by the application by calling a pitaya app's `Register` with a instance of the handler component. The handler's name can be defined by calling `pitaya/component`.WithName(`"handlerName"`) and the methods can be renamed by using `pitaya/component`.WithNameFunc(`func(string) string`).
 
 The clients can call the handler by calling `serverType.handlerName.methodName`.
 
 
 ### Routing messages
 
-Messages are forwarded by pitaya to the appropriate server type, and custom routers can be added to the application by calling `pitaya.AddRoute`, it expects two arguments:
+Messages are forwarded by pitaya to the appropriate server type, and custom routers can be added to the application by calling a pitaya app's `AddRoute`, it expects two arguments:
 
 * `serverType`: the server type of the target requests to be routed
-* `routingFunction`: the routing function with the signature `func(*session.Session, *route.Route, []byte, map[string]*cluster.Server) (*cluster.Server, error)`, it receives the user's session, the route being requested, the message and the map of valid servers of the given type, the key being the servers' ids
+* `routingFunction`: the routing function with the signature `func(session.Session, *route.Route, []byte, map[string]*cluster.Server) (*cluster.Server, error)`, it receives the user's session, the route being requested, the message and the map of valid servers of the given type, the key being the servers' ids
 
 The server will then use the routing function when routing requests to the given server type.
 
@@ -47,12 +47,12 @@ Handlers can optionally implement the following lifecycle methods:
 
 ### Handler example
 
-Below is a very barebones example of a handler definition, for a complete working example, check the [cluster demo](https://github.com/echo766/pitaya/tree/master/examples/demo/cluster).
+Below is a very barebones example of a handler definition, for a complete working example, check the [cluster demo](https://github.com/topfreegames/pitaya/tree/master/examples/demo/cluster).
 
 ```go
 import (
-  "github.com/echo766/pitaya"
-  "github.com/echo766/pitaya/component"
+  "github.com/topfreegames/pitaya"
+  "github.com/topfreegames/pitaya/component"
 )
 
 type Handler struct {
@@ -86,13 +86,17 @@ func (h *Handler) TestPush(ctx context.Context, msg *UserPushMessage) {
 }
 
 func main() {
-  pitaya.Register(
+  builder := pitaya.NewDefaultBuilder()
+  ...
+  app := builder.Build()
+
+  app.Register(
     &Handler{}, // struct to register as handler
     component.WithName("testhandler"), // name of the handler, used by the clients
     component.WithNameFunc(strings.ToLower), // naming conversion scheme to be used by the clients
   )
-
   ...
+  app.Start()
 }
 
 ```
@@ -116,7 +120,7 @@ Remote methods must return:
 
 ### Registering remotes
 
-Remotes must be explicitly registered by the application by calling `pitaya.RegisterRemote` with a instance of the remote component. The remote's name can be defined by calling `pitaya/component`.WithName(`"remoteName"`) and the methods can be renamed by using `pitaya/component`.WithNameFunc(`func(string) string`).
+Remotes must be explicitly registered by the application by calling a pitaya app's `RegisterRemote` with a instance of the remote component. The remote's name can be defined by calling `pitaya/component`.WithName(`"remoteName"`) and the methods can be renamed by using `pitaya/component`.WithNameFunc(`func(string) string`).
 
 The servers can call the remote by calling `serverType.remoteName.methodName`.
 
@@ -139,4 +143,4 @@ Remotes can optionally implement the following lifecycle methods:
 
 ### Remote example
 
-For a complete working example, check the [cluster demo](https://github.com/echo766/pitaya/tree/master/examples/demo/cluster).
+For a complete working example, check the [cluster demo](https://github.com/topfreegames/pitaya/tree/master/examples/demo/cluster).

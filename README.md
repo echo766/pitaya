@@ -1,13 +1,17 @@
 # pitaya [![Build Status][7]][8] [![Coverage Status][9]][10] [![GoDoc][1]][2] [![Docs][11]][12] [![Go Report Card][3]][4] [![MIT licensed][5]][6]
 
-[1]: https://godoc.org/github.com/echo766/pitaya?status.svg
-[2]: https://godoc.org/github.com/echo766/pitaya
-[3]: https://goreportcard.com/badge/github.com/echo766/pitaya
-[4]: https://goreportcard.com/report/github.com/echo766/pitaya
+*WARNING*: The [version v1.x](https://github.com/topfreegames/pitaya/tree/v1) of pitaya is under deprecation, complete guide of the new version v2.x can be found [here](https://github.com/topfreegames/pitaya/issues/240).
+
+---
+
+[1]: https://godoc.org/github.com/topfreegames/pitaya?status.svg
+[2]: https://godoc.org/github.com/topfreegames/pitaya
+[3]: https://goreportcard.com/badge/github.com/topfreegames/pitaya
+[4]: https://goreportcard.com/report/github.com/topfreegames/pitaya
 [5]: https://img.shields.io/badge/license-MIT-blue.svg
 [6]: LICENSE
-[7]: https://github.com/echo766/pitaya/actions/workflows/tests.yaml/badge.svg
-[8]: https://github.com/echo766/pitaya/actions/workflows/tests.yaml
+[7]: https://github.com/topfreegames/pitaya/actions/workflows/tests.yaml/badge.svg
+[8]: https://github.com/topfreegames/pitaya/actions/workflows/tests.yaml
 [9]: https://coveralls.io/repos/github/topfreegames/pitaya/badge.svg?branch=master
 [10]: https://coveralls.io/github/topfreegames/pitaya?branch=master
 [11]: https://readthedocs.org/projects/pitaya/badge/?version=latest
@@ -28,7 +32,7 @@ It provides a basic development framework for distributed multiplayer games and 
 ### Installing
 clone the repo
 ```
-git clone https://github.com/echo766/pitaya.git
+git clone https://github.com/topfreegames/pitaya.git
 ```
 setup pitaya dependencies
 ```
@@ -52,7 +56,7 @@ run the room backend server from the cluster_grpc example
 make run-cluster-grpc-example-room
 ```
 
-Now there should be 2 pitaya servers running, a frontend connector and a backend room. To send requests, use a REPL client for pitaya [pitaya-cli](https://github.com/echo766/pitaya-cli). 
+Now there should be 2 pitaya servers running, a frontend connector and a backend room. To send requests, use a REPL client for pitaya [pitaya-cli](https://github.com/topfreegames/pitaya-cli). 
 
 ```
 $ pitaya-cli
@@ -91,13 +95,13 @@ If you have found a security vulnerability, please email security@tfgco.com
 - Other pitaya-related projects
   + [libpitaya-cluster](https://github.com/topfreegames/libpitaya-cluster)
   + [libpitaya](https://github.com/topfreegames/libpitaya)
-  + [pitaya-admin](https://github.com/echo766/pitaya-admin)
-  + [pitaya-bot](https://github.com/echo766/pitaya-bot)
-  + [pitaya-cli](https://github.com/echo766/pitaya-cli)
-  + [pitaya-protos](https://github.com/echo766/pitaya-protos)
+  + [pitaya-admin](https://github.com/topfreegames/pitaya-admin)
+  + [pitaya-bot](https://github.com/topfreegames/pitaya-bot)
+  + [pitaya-cli](https://github.com/topfreegames/pitaya-cli)
+  + [pitaya-protos](https://github.com/topfreegames/pitaya-protos)
 
 - Documents
-  + [API Reference](https://godoc.org/github.com/echo766/pitaya)
+  + [API Reference](https://godoc.org/github.com/topfreegames/pitaya)
   + [In-depth documentation](https://pitaya.readthedocs.io/en/latest/)
 
 - Demo

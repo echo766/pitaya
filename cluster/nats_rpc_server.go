@@ -41,6 +41,7 @@ import (
 
 // NatsRPCServer struct
 type NatsRPCServer struct {
+	service                int
 	connString             string
 	connectionTimeout      time.Duration
 	maxReconnectionRetries int
@@ -48,7 +49,6 @@ type NatsRPCServer struct {
 	conn                   *nats.Conn
 	pushBufferSize         int
 	messagesBufferSize     int
-	config                 *config.Config
 	stopChan               chan bool
 	subChan                chan *nats.Msg // subChan is the channel used by the server to receive network messages addressed to itself
 	bindingsChan           chan *nats.Msg // bindingsChan receives notify from other servers on every user bind to session
@@ -61,18 +61,19 @@ type NatsRPCServer struct {
 	dropped                int
 	pitayaServer           protos.PitayaServer
 	metricsReporters       []metrics.Reporter
+	sessionPool            session.SessionPool
 	appDieChan             chan bool
 }
 
 // NewNatsRPCServer ctor
 func NewNatsRPCServer(
-	config *config.Config,
+	config config.NatsRPCServerConfig,
 	server *Server,
 	metricsReporters []metrics.Reporter,
 	appDieChan chan bool,
+	sessionPool session.SessionPool,
 ) (*NatsRPCServer, error) {
 	ns := &NatsRPCServer{
-		config:            config,
 		server:            server,
 		stopChan:          make(chan bool),
 		unhandledReqCh:    make(chan *protos.Request),
@@ -80,26 +81,28 @@ func NewNatsRPCServer(
 		metricsReporters:  metricsReporters,
 		appDieChan:        appDieChan,
 		connectionTimeout: nats.DefaultTimeout,
+		sessionPool:       sessionPool,
 	}
-	if err := ns.configure(); err != nil {
+	if err := ns.configure(config); err != nil {
 		return nil, err
 	}
 
 	return ns, nil
 }
 
-func (ns *NatsRPCServer) configure() error {
-	ns.connString = ns.config.GetString("pitaya.cluster.rpc.server.nats.connect")
+func (ns *NatsRPCServer) configure(config config.NatsRPCServerConfig) error {
+	ns.service = config.Services
+	ns.connString = config.Connect
 	if ns.connString == "" {
 		return constants.ErrNoNatsConnectionString
 	}
-	ns.connectionTimeout = ns.config.GetDuration("pitaya.cluster.rpc.server.nats.connectiontimeout")
-	ns.maxReconnectionRetries = ns.config.GetInt("pitaya.cluster.rpc.server.nats.maxreconnectionretries")
-	ns.messagesBufferSize = ns.config.GetInt("pitaya.buffer.cluster.rpc.server.nats.messages")
+	ns.connectionTimeout = config.ConnectionTimeout
+	ns.maxReconnectionRetries = config.MaxReconnectionRetries
+	ns.messagesBufferSize = config.Buffer.Messages
 	if ns.messagesBufferSize == 0 {
 		return constants.ErrNatsMessagesBufferSizeZero
 	}
-	ns.pushBufferSize = ns.config.GetInt("pitaya.buffer.cluster.rpc.server.nats.push")
+	ns.pushBufferSize = config.Buffer.Push
 	if ns.pushBufferSize == 0 {
 		return constants.ErrNatsPushBufferSizeZero
 	}
@@ -109,6 +112,8 @@ func (ns *NatsRPCServer) configure() error {
 	// blocking producers on a massive push
 	ns.userPushCh = make(chan *protos.Push, ns.pushBufferSize)
 	ns.userKickCh = make(chan *protos.KickMsg, ns.messagesBufferSize)
+	ns.responses = make([]*protos.Response, ns.service)
+	ns.requests = make([]*protos.Request, ns.service)
 	return nil
 }
 
@@ -133,7 +138,7 @@ func GetBindBroadcastTopic(svType string) string {
 }
 
 // onSessionBind should be called on each session bind
-func (ns *NatsRPCServer) onSessionBind(ctx context.Context, s *session.Session) error {
+func (ns *NatsRPCServer) onSessionBind(ctx context.Context, s session.Session) error {
 	if ns.server.Frontend {
 		subu, err := ns.subscribeToUserMessages(s.UID(), ns.server.Type)
 		if err != nil {
@@ -143,7 +148,7 @@ func (ns *NatsRPCServer) onSessionBind(ctx context.Context, s *session.Session) 
 		if err != nil {
 			return err
 		}
-		s.Subscriptions = []*nats.Subscription{subu, subk}
+		s.SetSubscriptions([]*nats.Subscription{subu, subk})
 	}
 	return nil
 }
@@ -311,8 +316,6 @@ func (ns *NatsRPCServer) processKick() {
 
 // Init inits nats rpc server
 func (ns *NatsRPCServer) Init() error {
-	ns.responses = make([]*protos.Response, ns.config.GetInt("pitaya.concurrency.remote.service"))
-	ns.requests = make([]*protos.Request, ns.config.GetInt("pitaya.concurrency.remote.service"))
 	// TODO should we have concurrency here? it feels like we should
 	go ns.handleMessages()
 
@@ -336,11 +339,11 @@ func (ns *NatsRPCServer) Init() error {
 		return err
 	}
 	// this handles remote messages
-	for i := 0; i < ns.config.GetInt("pitaya.concurrency.remote.service"); i++ {
+	for i := 0; i < ns.service; i++ {
 		go ns.processMessages(i)
 	}
 
-	session.OnSessionBind(ns.onSessionBind)
+	ns.sessionPool.OnSessionBind(ns.onSessionBind)
 
 	// this should be so fast that we shoudn't need concurrency
 	go ns.processPushes()

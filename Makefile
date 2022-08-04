@@ -141,8 +141,22 @@ test-coverage-func coverage-func: test-coverage merge-profiles
 	@echo "\033[1;34m=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\033[0m"
 	@go tool cover -func=coverage-all.out | egrep -v "100.0[%]"
 
+mocks: agent-mock session-mock networkentity-mock pitaya-mock serializer-mock acceptor-mock
+
+agent-mock:
+	@mockgen github.com/echo766/pitaya/agent Agent,AgentFactory | sed 's/mock_agent/mocks/' > agent/mocks/agent.go
+
+session-mock:
+	@mockgen github.com/echo766/pitaya/session Session,SessionPool | sed 's/mock_session/mocks/' > session/mocks/session.go
+
+networkentity-mock:
+	@mockgen github.com/echo766/pitaya/networkentity NetworkEntity | sed 's/mock_networkentity/mocks/' > networkentity/mocks/networkentity.go
+
+pitaya-mock:
+	@mockgen github.com/echo766/pitaya Pitaya | sed 's/mock_v2/mocks/' > mocks/app.go
+
 serializer-mock:
 	@mockgen github.com/echo766/pitaya/serialize Serializer | sed 's/mock_serialize/mocks/' > serialize/mocks/serializer.go
 
 acceptor-mock:
-	@mockgen github.com/echo766/pitaya/acceptor Acceptor | sed 's/mock_acceptor/mocks/' > mocks/acceptor.go
+	@mockgen github.com/echo766/pitaya/acceptor PlayerConn,Acceptor | sed 's/mock_acceptor/mocks/' > mocks/acceptor.go

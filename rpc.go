@@ -24,25 +24,25 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/echo766/pitaya/config"
 	"github.com/echo766/pitaya/constants"
 	"github.com/echo766/pitaya/route"
-	"github.com/echo766/pitaya/worker"
 	"github.com/golang/protobuf/proto"
 )
 
 // RPC calls a method in a different server
-func RPC(ctx context.Context, routeStr string, reply proto.Message, arg proto.Message) error {
-	return doSendRPC(ctx, "", routeStr, reply, arg)
+func (app *App) RPC(ctx context.Context, routeStr string, reply proto.Message, arg proto.Message) error {
+	return app.doSendRPC(ctx, "", routeStr, reply, arg)
 }
 
 // RPCTo send a rpc to a specific server
-func RPCTo(ctx context.Context, serverID, routeStr string, reply proto.Message, arg proto.Message) error {
-	return doSendRPC(ctx, serverID, routeStr, reply, arg)
+func (app *App) RPCTo(ctx context.Context, serverID, routeStr string, reply proto.Message, arg proto.Message) error {
+	return app.doSendRPC(ctx, serverID, routeStr, reply, arg)
 }
 
 // ReliableRPC enqueues RPC to worker so it's executed asynchronously
 // Default enqueue options are used
-func ReliableRPC(
+func (app *App) ReliableRPC(
 	routeStr string,
 	metadata map[string]interface{},
 	reply, arg proto.Message,
@@ -52,21 +52,21 @@ func ReliableRPC(
 
 // ReliableRPCWithOptions enqueues RPC to worker
 // Receive worker options for this specific RPC
-func ReliableRPCWithOptions(
+func (app *App) ReliableRPCWithOptions(
 	routeStr string,
 	metadata map[string]interface{},
 	reply, arg proto.Message,
-	opts *worker.EnqueueOpts,
+	opts *config.EnqueueOpts,
 ) (jid string, err error) {
 	return app.worker.EnqueueRPCWithOptions(routeStr, metadata, reply, arg, opts)
 }
 
-func doSendRPC(ctx context.Context, serverID, routeStr string, reply proto.Message, arg proto.Message) error {
+func (app *App) doSendRPC(ctx context.Context, serverID, routeStr string, reply proto.Message, arg proto.Message) error {
 	if app.rpcServer == nil {
 		return constants.ErrRPCServerNotInitialized
 	}
 
-	if reply != nil && reflect.TypeOf(reply).Kind() != reflect.Ptr {
+	if reflect.TypeOf(reply).Kind() != reflect.Ptr {
 		return constants.ErrReplyShouldBePtr
 	}
 
@@ -83,5 +83,5 @@ func doSendRPC(ctx context.Context, serverID, routeStr string, reply proto.Messa
 		return constants.ErrNonsenseRPC
 	}
 
-	return remoteService.RPC(ctx, serverID, r, reply, arg)
+	return app.remoteService.RPC(ctx, serverID, r, reply, arg)
 }

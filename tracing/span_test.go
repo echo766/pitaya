@@ -74,7 +74,6 @@ func TestExtractSpan(t *testing.T) {
 }
 
 func TestExtractSpanInjectedSpan(t *testing.T) {
-
 	span := opentracing.StartSpan("someOp")
 	span.SetBaggageItem("some_key", "12345")
 	span.SetBaggageItem("some-other-key", "42")
@@ -82,7 +81,6 @@ func TestExtractSpanInjectedSpan(t *testing.T) {
 
 	spanData := opentracing.TextMapCarrier{}
 	tracer := opentracing.GlobalTracer()
-
 	err := tracer.Inject(span.Context(), opentracing.TextMap, spanData)
 	assert.NoError(t, err)
 	ctx := pcontext.AddToPropagateCtx(context.Background(), constants.SpanPropagateCtxKey, spanData)

@@ -1,7 +1,7 @@
 # pitaya-chat-demo
-chat room demo base on [pitaya](https://github.com/echo766/pitaya) in 100 lines
+chat room demo base on [pitaya](https://github.com/topfreegames/pitaya) in 100 lines
 
-refs: https://github.com/echo766/pitaya
+refs: https://github.com/topfreegames/pitaya
 
 ## Required
 - golang

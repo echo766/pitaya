@@ -42,7 +42,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// GRPCClient rpc server struct
+// GRPCClient rpc client struct
 type GRPCClient struct {
 	bindingStorage   interfaces.BindingStorage
 	clientMap        sync.Map
@@ -56,7 +56,7 @@ type GRPCClient struct {
 
 // NewGRPCClient returns a new instance of GRPCClient
 func NewGRPCClient(
-	config *config.Config,
+	config config.GRPCClientConfig,
 	server *Server,
 	metricsReporters []metrics.Reporter,
 	bindingStorage interfaces.BindingStorage,
@@ -69,7 +69,10 @@ func NewGRPCClient(
 		server:           server,
 	}
 
-	gs.configure(config)
+	gs.dialTimeout = config.DialTimeout
+	gs.lazy = config.LazyConnection
+	gs.reqTimeout = config.RequestTimeout
+
 	return gs, nil
 }
 
@@ -86,18 +89,12 @@ func (gs *GRPCClient) Init() error {
 	return nil
 }
 
-func (gs *GRPCClient) configure(cfg *config.Config) {
-	gs.dialTimeout = cfg.GetDuration("pitaya.cluster.rpc.client.grpc.dialtimeout")
-	gs.lazy = cfg.GetBool("pitaya.cluster.rpc.client.grpc.lazyconnection")
-	gs.reqTimeout = cfg.GetDuration("pitaya.cluster.rpc.client.grpc.requesttimeout")
-}
-
 // Call makes a RPC Call
 func (gs *GRPCClient) Call(
 	ctx context.Context,
 	rpcType protos.RPCType,
 	route *route.Route,
-	session *session.Session,
+	session session.Session,
 	msg *message.Message,
 	server *Server,
 ) (*protos.Response, error) {

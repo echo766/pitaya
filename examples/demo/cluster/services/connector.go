@@ -14,11 +14,34 @@ import (
 // ConnectorRemote is a remote that will receive rpc's
 type ConnectorRemote struct {
 	component.Base
+	app pitaya.Pitaya
 }
 
 // Connector struct
 type Connector struct {
 	component.Base
+	app pitaya.Pitaya
+}
+
+// SessionData struct
+type SessionData struct {
+	Data map[string]interface{}
+}
+
+// Response struct
+type Response struct {
+	Code int32
+	Msg  string
+}
+
+// NewConnector ctor
+func NewConnector(app pitaya.Pitaya) *Connector {
+	return &Connector{app: app}
+}
+
+// NewConnectorRemote ctor
+func NewConnectorRemote(app pitaya.Pitaya) *ConnectorRemote {
+	return &ConnectorRemote{app: app}
 }
 
 func reply(code int32, msg string) (*protos.Response, error) {
@@ -27,6 +50,34 @@ func reply(code int32, msg string) (*protos.Response, error) {
 		Msg:  msg,
 	}
 	return res, nil
+}
+
+// GetSessionData gets the session data
+func (c *Connector) GetSessionData(ctx context.Context) (*SessionData, error) {
+	s := c.app.GetSessionFromCtx(ctx)
+	res := &SessionData{
+		Data: s.GetData(),
+	}
+	return res, nil
+}
+
+// SetSessionData sets the session data
+func (c *Connector) SetSessionData(ctx context.Context, data *SessionData) (*protos.Response, error) {
+	s := c.app.GetSessionFromCtx(ctx)
+	err := s.SetData(data.Data)
+	if err != nil {
+		return nil, pitaya.Error(err, "CN-000", map[string]string{"failed": "set data"})
+	}
+	return reply(200, "success")
+}
+
+// NotifySessionData sets the session data
+func (c *Connector) NotifySessionData(ctx context.Context, data *SessionData) {
+	s := c.app.GetSessionFromCtx(ctx)
+	err := s.SetData(data.Data)
+	if err != nil {
+		fmt.Println("got error on notify", err)
+	}
 }
 
 // RemoteFunc is a function that will be called remotely
@@ -38,8 +89,8 @@ func (c *ConnectorRemote) RemoteFunc(ctx context.Context, msg *protos.RPCMsg) (*
 }
 
 // Docs returns documentation
-func (c *ConnectorRemote) Docs(ctx context.Context) (*pitayaprotos.Doc, error) {
-	d, err := pitaya.Documentation(true)
+func (c *ConnectorRemote) Docs(ctx context.Context, ddd *pitayaprotos.Doc) (*pitayaprotos.Doc, error) {
+	d, err := c.app.Documentation(true)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +100,6 @@ func (c *ConnectorRemote) Docs(ctx context.Context) (*pitayaprotos.Doc, error) {
 		return nil, err
 	}
 
-	fmt.Println(string(doc))
 	return &pitayaprotos.Doc{Doc: string(doc)}, nil
 }
 

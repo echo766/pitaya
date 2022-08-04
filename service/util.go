@@ -23,15 +23,14 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
-	"github.com/echo766/pitaya/actor"
 	"github.com/echo766/pitaya/component"
 	"github.com/echo766/pitaya/conn/message"
 	"github.com/echo766/pitaya/constants"
 	e "github.com/echo766/pitaya/errors"
 	"github.com/echo766/pitaya/logger"
+	"github.com/echo766/pitaya/logger/interfaces"
 	"github.com/echo766/pitaya/pipeline"
 	"github.com/echo766/pitaya/protos"
 	"github.com/echo766/pitaya/route"
@@ -42,36 +41,6 @@ import (
 )
 
 var errInvalidMsg = errors.New("invalid message type provided")
-
-func getHandler(ctx context.Context, rt *route.Route) (*component.Handler, error) {
-	handler, ok := handlers[rt.Short()]
-	if !ok {
-		return nil, fmt.Errorf("pitaya/handler: %s not found", rt.String())
-	}
-
-	return handler, nil
-}
-
-func getHandleActor(ctx context.Context, rt *route.Route) (actor.Actor, error) {
-	svc, ok := services[rt.Service]
-	if !ok {
-		return nil, constants.ErrInvalidRoute
-	}
-	ac, ok := svc.Receiver.Interface().(actor.Actor)
-	if !ok {
-		return nil, constants.ErrInvalidRoute
-	}
-	if !rt.HasSub() {
-		return ac, nil
-	}
-	sac, ok := ac.(interface {
-		GetSubActor(ctx context.Context) (actor.Actor, error)
-	})
-	if !ok {
-		return nil, constants.ErrInvalidRoute
-	}
-	return sac.GetSubActor(ctx)
-}
 
 func unmarshalHandlerArg(handler *component.Handler, serializer serialize.Serializer, payload []byte) (interface{}, error) {
 	if handler.IsRawArg {
@@ -117,31 +86,6 @@ func getMsgType(msgTypeIface interface{}) (message.Type, error) {
 	return msgType, nil
 }
 
-func executeBeforePipeline(ctx context.Context, data interface{}) (context.Context, interface{}, error) {
-	var err error
-	res := data
-	if len(pipeline.BeforeHandler.Handlers) > 0 {
-		for _, h := range pipeline.BeforeHandler.Handlers {
-			ctx, res, err = h(ctx, res)
-			if err != nil {
-				logger.Log.Debugf("pitaya/handler: broken pipeline: %s", err.Error())
-				return ctx, res, err
-			}
-		}
-	}
-	return ctx, res, nil
-}
-
-func executeAfterPipeline(ctx context.Context, res interface{}, err error) (interface{}, error) {
-	ret := res
-	if len(pipeline.AfterHandler.Handlers) > 0 {
-		for _, h := range pipeline.AfterHandler.Handlers {
-			ret, err = h(ctx, ret, err)
-		}
-	}
-	return ret, err
-}
-
 func serializeReturn(ser serialize.Serializer, ret interface{}) ([]byte, error) {
 	res, err := util.SerializeOrRaw(ser, ret)
 	if err != nil {
@@ -155,38 +99,30 @@ func serializeReturn(ser serialize.Serializer, ret interface{}) ([]byte, error) 
 	return res, nil
 }
 
-// execute on actor routine
-func asnycProcessMessage(
+func processHandlerMessage(
 	ctx context.Context,
-	ac actor.Actor,
 	rt *route.Route,
+	handler *component.Handler,
 	serializer serialize.Serializer,
-	session *session.Session,
+	handlerHooks *pipeline.HandlerHooks,
+	session session.Session,
 	data []byte,
 	msgTypeIface interface{},
 	remote bool,
-) (interface{}, error) {
-	h, err := getHandler(ctx, rt)
-	if err != nil {
-		ah, ok := ac.(interface {
-			GetHandler(ctx context.Context, rt *route.Route) (*component.Handler, error)
-		})
-		if !ok {
-			return nil, e.NewError(err, e.ErrBadRequestCode)
-		}
-		h, err = ah.GetHandler(ctx, rt)
-		if err != nil {
-			return nil, e.NewError(err, e.ErrBadRequestCode)
-		}
+) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	ctx = context.WithValue(ctx, constants.SessionCtxKey, session)
+	ctx = util.CtxWithDefaultLogger(ctx, rt.String(), session.UID())
 
 	msgType, err := getMsgType(msgTypeIface)
 	if err != nil {
-		return nil, e.NewError(err, e.ErrBadRequestCode)
+		return nil, e.NewError(err, e.ErrInternalCode)
 	}
 
-	logger := ctx.Value(constants.LoggerCtxKey).(logger.Logger)
-	exit, err := h.ValidateMessageType(msgType)
+	logger := ctx.Value(constants.LoggerCtxKey).(interfaces.Logger)
+	exit, err := handler.ValidateMessageType(msgType)
 	if err != nil && exit {
 		return nil, e.NewError(err, e.ErrBadRequestCode)
 	} else if err != nil {
@@ -195,27 +131,23 @@ func asnycProcessMessage(
 
 	// First unmarshal the handler arg that will be passed to
 	// both handler and pipeline functions
-	arg, err := unmarshalHandlerArg(h, serializer, data)
+	arg, err := unmarshalHandlerArg(handler, serializer, data)
 	if err != nil {
 		return nil, e.NewError(err, e.ErrBadRequestCode)
 	}
 
-	ctx, arg, err = executeBeforePipeline(ctx, arg)
+	ctx, arg, err = handlerHooks.BeforeHandler.ExecuteBeforePipeline(ctx, arg)
 	if err != nil {
-		return nil, e.NewError(err, e.ErrBadRequestCode)
+		return nil, err
 	}
 
 	logger.Debugf("SID=%d, Data=%s", session.ID(), data)
-	args := []reflect.Value{h.Receiver, reflect.ValueOf(ctx)}
+	args := []reflect.Value{handler.Receiver, reflect.ValueOf(ctx)}
 	if arg != nil {
 		args = append(args, reflect.ValueOf(arg))
 	}
 
-	resp, err := util.Pcall(h.Method, args)
-	if err != nil {
-		return nil, e.NewError(err, e.ErrInternalCode)
-	}
-
+	resp, err := util.Pcall(handler.Method, args)
 	if remote && msgType == message.Notify {
 		// This is a special case and should only happen with nats rpc client
 		// because we used nats request we have to answer to it or else a timeout
@@ -225,38 +157,7 @@ func asnycProcessMessage(
 		resp = []byte("ack")
 	}
 
-	resp, err = executeAfterPipeline(ctx, resp, err)
-	if err != nil {
-		return nil, e.NewError(err, e.ErrInternalCode)
-	}
-	return resp, nil
-}
-
-func processHandlerMessage(
-	ctx context.Context,
-	rt *route.Route,
-	serializer serialize.Serializer,
-	session *session.Session,
-	data []byte,
-	msgTypeIface interface{},
-	remote bool,
-) ([]byte, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	ctx = context.WithValue(ctx, constants.SessionCtxKey, session)
-	ctx = context.WithValue(ctx, constants.RouteCtxKey, rt)
-
-	ctx = util.CtxWithDefaultLogger(ctx, rt.String(), session.UID())
-
-	ac, err := getHandleActor(ctx, rt)
-	if err != nil {
-		return nil, e.NewError(err, e.ErrNotFoundCode)
-	}
-
-	resp, err := ac.Exec(ctx, func() (interface{}, error) {
-		return asnycProcessMessage(ctx, ac, rt, serializer, session, data, msgTypeIface, remote)
-	})
+	resp, err = handlerHooks.AfterHandler.ExecuteAfterPipeline(ctx, resp, err)
 	if err != nil {
 		return nil, err
 	}

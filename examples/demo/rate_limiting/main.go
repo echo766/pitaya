@@ -3,9 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
-	"time"
-
 	"strings"
+	"time"
 
 	"github.com/echo766/pitaya"
 	"github.com/echo766/pitaya/acceptor"
@@ -13,15 +12,11 @@ import (
 	"github.com/echo766/pitaya/component"
 	"github.com/echo766/pitaya/config"
 	"github.com/echo766/pitaya/examples/demo/rate_limiting/services"
-	"github.com/echo766/pitaya/serialize/json"
+	"github.com/echo766/pitaya/metrics"
 	"github.com/spf13/viper"
 )
 
-func configureFrontend(port int) {
-	room := services.NewRoom()
-	pitaya.Register(room,
-		component.WithName("room"),
-		component.WithNameFunc(strings.ToLower))
+func createAcceptor(port int, reporters []metrics.Reporter) acceptor.Acceptor {
 
 	// 5 requests in 1 minute. Doesn't make sense, just to test
 	// rate limiting
@@ -30,24 +25,35 @@ func configureFrontend(port int) {
 	vConfig.Set("pitaya.conn.ratelimiting.interval", time.Minute)
 	pConfig := config.NewConfig(vConfig)
 
+	rateLimitConfig := config.NewRateLimitingConfig(pConfig)
+
 	tcp := acceptor.NewTCPAcceptor(fmt.Sprintf(":%d", port))
-	wrapped := acceptorwrapper.WithWrappers(
+	return acceptorwrapper.WithWrappers(
 		tcp,
-		acceptorwrapper.NewRateLimitingWrapper(pConfig))
-	pitaya.AddAcceptor(wrapped)
+		acceptorwrapper.NewRateLimitingWrapper(reporters, *rateLimitConfig))
 }
 
-func main() {
-	defer pitaya.Shutdown()
+var app pitaya.Pitaya
 
+func main() {
 	port := flag.Int("port", 3250, "the port to listen")
 	svType := "room"
 
 	flag.Parse()
 
-	pitaya.SetSerializer(json.NewSerializer())
-	configureFrontend(*port)
+	config := config.NewDefaultBuilderConfig()
+	builder := pitaya.NewDefaultBuilder(true, svType, pitaya.Cluster, map[string]string{}, *config)
+	builder.AddAcceptor(createAcceptor(*port, builder.MetricsReporters))
 
-	pitaya.Configure(true, svType, pitaya.Cluster, map[string]string{})
-	pitaya.Start()
+	app = builder.Build()
+
+	defer app.Shutdown()
+
+	room := services.NewRoom()
+	app.Register(room,
+		component.WithName("room"),
+		component.WithNameFunc(strings.ToLower),
+	)
+
+	app.Start()
 }

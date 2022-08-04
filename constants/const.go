@@ -43,60 +43,61 @@ const (
 	KickRoute = "sys.kick"
 )
 
-const (
-	// SessionCtxKey is the context key where the session will be set
-	SessionCtxKey = "session"
+// SessionCtxKey is the context key where the session will be set
+var SessionCtxKey = "session"
 
-	// RouteCtxKey is the context key where the route will be set
-	RouteCtxKey = "route"
+// RouteCtxKey is the context key where the route will be set
+var RouteCtxKey = "route"
 
-	// LoggerCtxKey is the context key where the default logger will be set
-	LoggerCtxKey = "default-logger"
+// LoggerCtxKey is the context key where the default logger will be set
+var LoggerCtxKey = "default-logger"
 
-	// SpanPropagateCtxKey is the key holding the opentracing spans inside
-	// the propagate key
-	SpanPropagateCtxKey = "opentracing-span"
+type propagateKey struct{}
 
-	// PeerIDKey is the key holding the peer id to be sent over the context
-	PeerIDKey = "peer.id"
+// PropagateCtxKey is the context key where the content that will be
+// propagated through rpc calls is set
+var PropagateCtxKey = propagateKey{}
 
-	// PeerServiceKey is the key holding the peer service to be sent over the context
-	PeerServiceKey = "peer.service"
+// SpanPropagateCtxKey is the key holding the opentracing spans inside
+// the propagate key
+var SpanPropagateCtxKey = "opentracing-span"
 
-	// StartTimeKey is the key holding the request start time (in ns) to be sent over the context
-	StartTimeKey = "req-start-time"
+// PeerIDKey is the key holding the peer id to be sent over the context
+var PeerIDKey = "peer.id"
 
-	// RequestIDKey is the key holding the request id to be sent over the context
-	RequestIDKey = "request.id"
+// PeerServiceKey is the key holding the peer service to be sent over the context
+var PeerServiceKey = "peer.service"
 
-	// RouteKey is the key holding the request route to be sent over the context
-	RouteKey = "req-route"
+// StartTimeKey is the key holding the request start time (in ns) to be sent over the context
+var StartTimeKey = "req-start-time"
 
-	// MetricTagsKey is the key holding request tags to be sent over the context
-	// to be reported
-	MetricTagsKey = "metric-tags"
+// RequestIDKey is the key holding the request id to be sent over the context
+var RequestIDKey = "request.id"
 
-	// GRPCHostKey is the key for grpc host on server metadata
-	GRPCHostKey = "grpcHost"
+// RouteKey is the key holding the request route to be sent over the context
+var RouteKey = "req-route"
 
-	// GRPCExternalHostKey is the key for grpc external host on server metadata
-	GRPCExternalHostKey = "grpc-external-host"
+// MetricTagsKey is the key holding request tags to be sent over the context
+// to be reported
+var MetricTagsKey = "metric-tags"
 
-	// GRPCPortKey is the key for grpc port on server metadata
-	GRPCPortKey = "grpcPort"
+// GRPCHostKey is the key for grpc host on server metadata
+var GRPCHostKey = "grpcHost"
 
-	// ServerIDKey is the key for server id on server metadata
-	ServerIDKey = "serverID"
+// GRPCExternalHostKey is the key for grpc external host on server metadata
+var GRPCExternalHostKey = "grpc-external-host"
 
-	// GRPCExternalPortKey is the key for grpc external port on server metadata
-	GRPCExternalPortKey = "grpc-external-port"
+// GRPCPortKey is the key for grpc port on server metadata
+var GRPCPortKey = "grpcPort"
 
-	// RegionKey is the key to save the region server is on
-	RegionKey = "region"
+// GRPCExternalPortKey is the key for grpc external port on server metadata
+var GRPCExternalPortKey = "grpc-external-port"
 
-	// IOBufferBytesSize will be used when reading messages from clients
-	IOBufferBytesSize = 4096
-)
+// RegionKey is the key to save the region server is on
+var RegionKey = "region"
+
+// ServerIDKey is the key for server id on server metadata
+var ServerIDKey = "serverID"
 
 // IP constants
 const (
@@ -105,8 +106,5 @@ const (
 	IPv6         = "ipv6"
 )
 
-type propagateKey struct{}
-
-// PropagateCtxKey is the context key where the content that will be
-// propagated through rpc calls is set
-var PropagateCtxKey = propagateKey{}
+// IOBufferBytesSize will be used when reading messages from clients
+var IOBufferBytesSize = 4096

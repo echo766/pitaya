@@ -24,17 +24,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/nats-io/nuid"
 	"os"
 	"reflect"
 	"runtime/debug"
 	"strconv"
+
+	"github.com/nats-io/nuid"
 
 	"github.com/echo766/pitaya/conn/message"
 	"github.com/echo766/pitaya/constants"
 	pcontext "github.com/echo766/pitaya/context"
 	e "github.com/echo766/pitaya/errors"
 	"github.com/echo766/pitaya/logger"
+	"github.com/echo766/pitaya/logger/interfaces"
 	"github.com/echo766/pitaya/protos"
 	"github.com/echo766/pitaya/serialize"
 	"github.com/echo766/pitaya/serialize/json"
@@ -42,10 +44,9 @@ import (
 	"github.com/echo766/pitaya/tracing"
 
 	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/sirupsen/logrus"
 )
 
-func getLoggerFromArgs(args []reflect.Value) logger.Logger {
+func getLoggerFromArgs(args []reflect.Value) interfaces.Logger {
 	for _, a := range args {
 		if !a.IsValid() {
 			continue
@@ -53,7 +54,7 @@ func getLoggerFromArgs(args []reflect.Value) logger.Logger {
 		if ctx, ok := a.Interface().(context.Context); ok {
 			logVal := ctx.Value(constants.LoggerCtxKey)
 			if logVal != nil {
-				log := logVal.(logger.Logger)
+				log := logVal.(interfaces.Logger)
 				return log
 			}
 		}
@@ -171,26 +172,21 @@ func ConvertProtoToMessageType(protoMsgType protos.MsgType) message.Type {
 // If using logrus, userId, route and requestId will be added as fields.
 // Otherwise the pitaya logger will be used as it is.
 func CtxWithDefaultLogger(ctx context.Context, route, userID string) context.Context {
-	var defaultLogger logger.Logger
-	logrusLogger, ok := logger.Log.(logrus.FieldLogger)
-	if ok {
-		requestID := pcontext.GetFromPropagateCtx(ctx, constants.RequestIDKey)
-		if rID, ok := requestID.(string); ok {
-			if rID == "" {
-				requestID = nuid.Next()
-			}
-		} else {
-			requestID = nuid.Next()
+	requestID := pcontext.GetFromPropagateCtx(ctx, constants.RequestIDKey)
+	if rID, ok := requestID.(string); ok {
+		if rID == "" {
+			requestID = nuid.New()
 		}
-		defaultLogger = logrusLogger.WithFields(
-			logrus.Fields{
-				"route":     route,
-				"requestId": requestID,
-				"userId":    userID,
-			})
 	} else {
-		defaultLogger = logger.Log
+		requestID = nuid.New()
 	}
+	defaultLogger := logger.Log.WithFields(
+		map[string]interface{}{
+			"route":     route,
+			"requestId": requestID,
+			"userId":    userID,
+		},
+	)
 
 	return context.WithValue(ctx, constants.LoggerCtxKey, defaultLogger)
 }

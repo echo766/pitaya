@@ -25,22 +25,16 @@ import (
 	"time"
 
 	"github.com/echo766/pitaya/config"
-	"github.com/spf13/viper"
+	"github.com/echo766/pitaya/metrics"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewRateLimitingWrapper(t *testing.T) {
 	t.Parallel()
 
-	getConfig := func() *config.Config {
-		c := viper.New()
-		c.Set("pitaya.router.ratelimiting.limit", 20)
-		c.Set("pitaya.router.ratelimiting.interval", time.Second)
-		c.Set("pitaya.router.ratelimiting.forceDisable", false)
-		return config.NewConfig(c)
-	}
+	reporters := []metrics.Reporter{}
 
-	rateLimitingWrapper := NewRateLimitingWrapper(getConfig())
-	expected := NewRateLimiter(nil, 20, time.Second, false)
+	rateLimitingWrapper := NewRateLimitingWrapper(reporters, *config.NewDefaultRateLimitingConfig())
+	expected := NewRateLimiter(reporters, nil, 20, time.Second, false)
 	assert.Equal(t, expected, rateLimitingWrapper.wrapConn(nil))
 }

@@ -2,15 +2,15 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"strings"
 
 	"github.com/echo766/pitaya"
 	"github.com/echo766/pitaya/acceptor"
 	"github.com/echo766/pitaya/component"
+	"github.com/echo766/pitaya/config"
 	"github.com/echo766/pitaya/examples/demo/game/logic/avatar"
-	"github.com/echo766/pitaya/serialize/json"
-	"github.com/spf13/viper"
 )
 
 func main() {
@@ -18,28 +18,25 @@ func main() {
 
 	conf := configApp()
 
-	pitaya.SetSerializer(json.NewSerializer())
+	builder := pitaya.NewDefaultBuilder(true, "game", pitaya.Standalone, map[string]string{}, *conf)
+	builder.AddAcceptor(acceptor.NewWSAcceptor(":3250"))
 
-	pitaya.Register(avatar.NewAvatarMgr(),
+	app := builder.Build()
+
+	app.Register(avatar.NewAvatarMgr(),
 		component.WithName("avatarmgr"),
 		component.WithNameFunc(strings.ToLower),
 	)
 
 	log.SetFlags(log.LstdFlags | log.Llongfile)
-
-	t := acceptor.NewWSAcceptor(":3250")
-	pitaya.AddAcceptor(t)
-
-	pitaya.Configure(true, "game", pitaya.Standalone, map[string]string{}, conf)
-	pitaya.Start()
+	app.Start()
 }
 
-func configApp() *viper.Viper {
-	conf := viper.New()
-	conf.SetEnvPrefix("game") // allows using env vars in the CHAT_PITAYA_ format
-	conf.SetDefault("pitaya.buffer.handler.localprocess", 15)
-	conf.Set("pitaya.heartbeat.interval", "15s")
-	conf.Set("pitaya.buffer.agent.messages", 32)
-	conf.Set("pitaya.handler.messages.compression", false)
+func configApp() *config.BuilderConfig {
+	conf := config.NewDefaultBuilderConfig()
+	conf.Pitaya.Buffer.Handler.LocalProcess = 15
+	conf.Pitaya.Heartbeat.Interval = time.Duration(15 * time.Second)
+	conf.Pitaya.Buffer.Agent.Messages = 32
+	conf.Pitaya.Handler.Messages.Compression = false
 	return conf
 }

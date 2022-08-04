@@ -9,35 +9,16 @@ import (
 	"github.com/echo766/pitaya"
 	"github.com/echo766/pitaya/acceptor"
 	"github.com/echo766/pitaya/component"
+	"github.com/echo766/pitaya/config"
 	"github.com/echo766/pitaya/examples/demo/worker/services"
-	"github.com/echo766/pitaya/serialize/json"
 	"github.com/spf13/viper"
 )
 
-func configureMetagame() {
-	pitaya.RegisterRemote(&services.Metagame{},
-		component.WithName("metagame"),
-		component.WithNameFunc(strings.ToLower),
-	)
-}
+var app pitaya.Pitaya
 
-func configureRoom(port int) error {
-	tcp := acceptor.NewTCPAcceptor(fmt.Sprintf(":%d", port))
-	pitaya.AddAcceptor(tcp)
-
-	pitaya.Register(&services.Room{},
-		component.WithName("room"),
-		component.WithNameFunc(strings.ToLower),
-	)
-
-	err := pitaya.StartWorker(pitaya.GetConfig())
-	return err
-}
-
-func configureWorker() error {
+func configureWorker() {
 	worker := services.Worker{}
-	err := worker.Configure()
-	return err
+	worker.Configure(app)
 }
 
 func main() {
@@ -47,29 +28,38 @@ func main() {
 
 	flag.Parse()
 
-	defer pitaya.Shutdown()
+	conf := viper.New()
+	conf.SetDefault("pitaya.worker.redis.url", "localhost:6379")
+	conf.SetDefault("pitaya.worker.redis.pool", "3")
 
-	pitaya.SetSerializer(json.NewSerializer())
+	config := config.NewConfig(conf)
 
-	config := viper.New()
-	config.SetDefault("pitaya.worker.redis.url", "localhost:6379")
-	config.SetDefault("pitaya.worker.redis.pool", "3")
+	tcp := acceptor.NewTCPAcceptor(fmt.Sprintf(":%d", *port))
 
-	pitaya.Configure(*isFrontend, *svType, pitaya.Cluster, map[string]string{})
+	builder := pitaya.NewBuilderWithConfigs(*isFrontend, *svType, pitaya.Cluster, map[string]string{}, config)
+	if *isFrontend {
+		builder.AddAcceptor(tcp)
+	}
+	app = builder.Build()
 
-	var err error
+	defer app.Shutdown()
+
+	defer app.Shutdown()
+
 	switch *svType {
 	case "metagame":
-		configureMetagame()
+		app.RegisterRemote(&services.Metagame{},
+			component.WithName("metagame"),
+			component.WithNameFunc(strings.ToLower),
+		)
 	case "room":
-		err = configureRoom(*port)
+		app.Register(services.NewRoom(app),
+			component.WithName("room"),
+			component.WithNameFunc(strings.ToLower),
+		)
 	case "worker":
-		err = configureWorker()
+		configureWorker()
 	}
 
-	if err != nil {
-		panic(err)
-	}
-
-	pitaya.Start()
+	app.Start()
 }

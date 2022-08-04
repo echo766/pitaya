@@ -26,26 +26,33 @@ import (
 
 	"github.com/echo766/pitaya/cluster"
 	clustermocks "github.com/echo766/pitaya/cluster/mocks"
+	"github.com/echo766/pitaya/config"
 	"github.com/echo766/pitaya/conn/codec"
 	"github.com/echo766/pitaya/conn/message"
 	"github.com/echo766/pitaya/constants"
+	"github.com/echo766/pitaya/pipeline"
 	"github.com/echo766/pitaya/protos"
 	"github.com/echo766/pitaya/protos/test"
 	"github.com/echo766/pitaya/route"
 	"github.com/echo766/pitaya/router"
 	serializemocks "github.com/echo766/pitaya/serialize/mocks"
 	"github.com/echo766/pitaya/service"
+	sessionmocks "github.com/echo766/pitaya/session/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDoSendRPCNotInitialized(t *testing.T) {
-	err := doSendRPC(nil, "", "", nil, nil)
+	config := config.NewDefaultBuilderConfig()
+	app := NewDefaultApp(true, "testtype", Standalone, map[string]string{}, *config).(*App)
+	err := app.doSendRPC(nil, "", "", nil, nil)
 	assert.Equal(t, constants.ErrRPCServerNotInitialized, err)
 }
 
 func TestDoSendRPC(t *testing.T) {
+	config := config.NewDefaultBuilderConfig()
+	app := NewDefaultApp(true, "testtype", Cluster, map[string]string{}, *config).(*App)
 	app.server.ID = "myserver"
 	app.rpcServer = &cluster.NatsRPCServer{}
 	tables := []struct {
@@ -73,17 +80,19 @@ func TestDoSendRPC(t *testing.T) {
 				mockRPCClient := clustermocks.NewMockRPCClient(ctrl)
 				mockRPCServer := clustermocks.NewMockRPCServer(ctrl)
 				messageEncoder := message.NewMessagesEncoder(false)
+				sessionPool := sessionmocks.NewMockSessionPool(ctrl)
 				router := router.New()
-				svc := service.NewRemoteService(mockRPCClient, mockRPCServer, mockSD, packetEncoder, mockSerializer, router, messageEncoder, &cluster.Server{})
+				handlerPool := service.NewHandlerPool()
+				svc := service.NewRemoteService(mockRPCClient, mockRPCServer, mockSD, packetEncoder, mockSerializer, router, messageEncoder, &cluster.Server{}, sessionPool, pipeline.NewHandlerHooks(), handlerPool)
 				assert.NotNil(t, svc)
-				remoteService = svc
+				app.remoteService = svc
 				app.server.ID = "notmyserver"
 				b, err := proto.Marshal(&test.SomeStruct{A: 1})
 				assert.NoError(t, err)
 				mockSD.EXPECT().GetServer("myserver").Return(&cluster.Server{}, nil)
 				mockRPCClient.EXPECT().Call(ctx, protos.RPCType_User, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&protos.Response{Data: b}, nil)
 			}
-			err := RPCTo(ctx, "myserver", table.routeStr, table.reply, table.arg)
+			err := app.RPCTo(ctx, "myserver", table.routeStr, table.reply, table.arg)
 			assert.Equal(t, table.err, err)
 		})
 	}

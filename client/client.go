@@ -39,6 +39,7 @@ import (
 	"github.com/echo766/pitaya/conn/message"
 	"github.com/echo766/pitaya/conn/packet"
 	"github.com/echo766/pitaya/logger"
+	logruswrapper "github.com/echo766/pitaya/logger/logrus"
 	"github.com/echo766/pitaya/session"
 	"github.com/echo766/pitaya/util/compression"
 	"github.com/gorilla/websocket"
@@ -97,7 +98,7 @@ func New(logLevel logrus.Level, requestTimeout ...time.Duration) *Client {
 	l.Formatter = &logrus.TextFormatter{}
 	l.SetLevel(logLevel)
 
-	logger.Log = l
+	logger.Log = logruswrapper.NewWithFieldLogger(l)
 
 	reqTimeout := 5 * time.Second
 	if len(requestTimeout) > 0 {

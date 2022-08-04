@@ -29,9 +29,8 @@ import (
 	"github.com/echo766/pitaya/config"
 	"github.com/echo766/pitaya/constants"
 	"github.com/echo766/pitaya/helpers"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/etcd/clientv3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var etcdSDTables = []struct {
@@ -95,12 +94,7 @@ var etcdSDBlacklistTables = []struct {
 	},
 }
 
-func getConfig(conf ...*viper.Viper) *config.Config {
-	config := config.NewConfig(conf...)
-	return config
-}
-
-func getEtcdSD(t *testing.T, config *config.Config, server *Server, cli *clientv3.Client) *etcdServiceDiscovery {
+func getEtcdSD(t *testing.T, config config.EtcdServiceDiscoveryConfig, server *Server, cli *clientv3.Client) *etcdServiceDiscovery {
 	t.Helper()
 	appDieChan := make(chan bool)
 	e, err := NewEtcdServiceDiscovery(config, server, appDieChan, cli)
@@ -112,10 +106,10 @@ func TestNewEtcdServiceDiscovery(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			assert.NotNil(t, e)
 		})
 	}
@@ -125,10 +119,10 @@ func TestEtcdSDBootstrapLease(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			err := e.grantLease()
 			assert.NoError(t, err)
 			assert.NotEmpty(t, e.leaseID)
@@ -140,10 +134,10 @@ func TestEtcdSDBootstrapLeaseError(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
-			c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			defer c.Terminate(t)
+			e := getEtcdSD(t, *config, table.server, cli)
 			err := e.grantLease()
 			assert.Error(t, err)
 		})
@@ -154,10 +148,10 @@ func TestEtcdSDBootstrapServer(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			err := e.bootstrapServer(table.server)
 			assert.NoError(t, err)
@@ -179,10 +173,10 @@ func TestEtcdSDDeleteServer(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			err := e.bootstrapServer(table.server)
 			assert.NoError(t, err)
@@ -219,9 +213,10 @@ func TestEtcdSDDeleteLocalInvalidServers(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
-			_, cli := helpers.GetTestEtcd(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
+			c, cli := helpers.GetTestEtcd(t)
+			defer c.Terminate(t)
+			e := getEtcdSD(t, *config, table.server, cli)
 			invalidServer := &Server{
 				ID:   "invalid",
 				Type: "bla",
@@ -239,10 +234,10 @@ func TestEtcdSDGetServer(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			e.bootstrapServer(table.server)
 			sv, err := e.GetServer(table.server.ID)
@@ -255,10 +250,10 @@ func TestEtcdSDGetServer(t *testing.T) {
 func TestEtcdSDGetServers(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTablesMultipleServers {
-		config := getConfig()
+		config := config.NewDefaultEtcdServiceDiscoveryConfig()
 		c, cli := helpers.GetTestEtcd(t)
 		defer c.Terminate(t)
-		e := getEtcdSD(t, config, &Server{}, cli)
+		e := getEtcdSD(t, *config, &Server{}, cli)
 		e.Init()
 		for _, server := range table.servers {
 			e.bootstrapServer(server)
@@ -274,12 +269,11 @@ func TestEtcdSDInit(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			conf := viper.New()
-			conf.Set("pitaya.cluster.sd.etcd.syncservers.interval", "300ms")
-			config := getConfig(conf)
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
+			config.SyncServers.Interval = time.Duration(300 * time.Millisecond)
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			// should set running
 			assert.True(t, e.running)
@@ -303,10 +297,10 @@ func TestEtcdBeforeShutdown(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			assert.True(t, e.running)
 			e.BeforeShutdown()
@@ -321,10 +315,10 @@ func TestEtcdShutdown(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			assert.True(t, e.running)
 			e.Shutdown()
@@ -337,10 +331,11 @@ func TestEtcdWatchChangesAddNewServers(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
+			config.SyncServers.Interval = time.Duration(100 * time.Millisecond)
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			e.running = true
 			serversBefore, err := e.GetServersByType(table.server.Type)
@@ -368,10 +363,11 @@ func TestEtcdWatchChangesDeleteServers(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDTables {
 		t.Run(table.server.ID, func(t *testing.T) {
-			config := getConfig()
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
+			config.SyncServers.Interval = 100 * time.Millisecond
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			e.running = true
 			serversBefore, err := e.GetServersByType(table.server.Type)
@@ -405,13 +401,12 @@ func TestEtcdWatchChangesWithBlacklist(t *testing.T) {
 	t.Parallel()
 	for _, table := range etcdSDBlacklistTables {
 		t.Run(table.name, func(t *testing.T) {
-			conf := viper.New()
-			conf.Set("pitaya.cluster.sd.etcd.syncservers.interval", "100ms")
-			conf.Set("pitaya.cluster.sd.etcd.serverTypeBlacklist", table.serverTypeBlacklist)
-			config := getConfig(conf)
+			config := config.NewDefaultEtcdServiceDiscoveryConfig()
+			config.SyncServers.Interval = 100 * time.Millisecond
+			config.ServerTypesBlacklist = table.serverTypeBlacklist
 			c, cli := helpers.GetTestEtcd(t)
 			defer c.Terminate(t)
-			e := getEtcdSD(t, config, table.server, cli)
+			e := getEtcdSD(t, *config, table.server, cli)
 			e.Init()
 			e.running = true
 
