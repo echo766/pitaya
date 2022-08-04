@@ -20,6 +20,7 @@ import (
 	worker "github.com/echo766/pitaya/worker"
 	gomock "github.com/golang/mock/gomock"
 	proto "github.com/golang/protobuf/proto"
+	"github.com/jmoiron/sqlx"
 )
 
 // MockPitaya is a mock of Pitaya interface
@@ -123,6 +124,21 @@ func (m *MockPitaya) GetServer() *cluster.Server {
 	ret := m.ctrl.Call(m, "GetServer")
 	ret0, _ := ret[0].(*cluster.Server)
 	return ret0
+}
+
+func (m *MockPitaya) GetDB() *sqlx.DB {
+	return nil
+}
+
+func (m *MockPitaya) SetDB(*sqlx.DB)  {
+}
+
+func (m *MockPitaya) GetServerUID() string {
+	return ""
+}
+
+func (m *MockPitaya) SendPushToUser(route string, v interface{}, uid string, frontId string, frontType string) error {
+	return nil
 }
 
 // GetServer indicates an expected call of GetServer
