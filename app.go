@@ -76,6 +76,7 @@ type Pitaya interface {
 	SetDebug(debug bool)
 	SetHeartbeatTime(interval time.Duration)
 	GetServerID() string
+	GetServerUID() string
 	GetMetricsReporters() []metrics.Reporter
 	GetServer() *cluster.Server
 	GetServerByID(id string) (*cluster.Server, error)
@@ -106,6 +107,7 @@ type Pitaya interface {
 		opts *config.EnqueueOpts,
 	) (jid string, err error)
 
+	SendPushToUser(route string, v interface{}, uid string, frontId string, frontType string) error
 	SendPushToUsers(route string, v interface{}, uids []string, frontendType string) ([]string, error)
 	SendKickToUsers(uids []string, frontendType string) ([]string, error)
 
@@ -232,6 +234,11 @@ func (app *App) SetHeartbeatTime(interval time.Duration) {
 
 // GetServerID returns the generated server id
 func (app *App) GetServerID() string {
+	return app.server.Metadata[constants.ServerIDKey]
+}
+
+// GetServerUID returns the generated server id
+func (app *App) GetServerUID() string {
 	return app.server.ID
 }
 

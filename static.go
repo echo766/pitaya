@@ -75,6 +75,11 @@ func GetServerID() string {
 	return DefaultApp.GetServerID()
 }
 
+// GetServerUniqueID returns the generated server id
+func GetServerUID() string {
+	return DefaultApp.GetServerUID()
+}
+
 func GetMetricsReporters() []metrics.Reporter {
 	return DefaultApp.GetMetricsReporters()
 }
@@ -154,6 +159,10 @@ func ReliableRPCWithOptions(routeStr string, metadata map[string]interface{}, re
 
 func SendPushToUsers(route string, v interface{}, uids []string, frontendType string) ([]string, error) {
 	return DefaultApp.SendPushToUsers(route, v, uids, frontendType)
+}
+
+func SendPushToUser(route string, v interface{}, uid string, frontId string, frontType string) error {
+	return DefaultApp.SendPushToUser(route, v, uid, frontId, frontendType)
 }
 
 func SendKickToUsers(uids []string, frontendType string) ([]string, error) {
