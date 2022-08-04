@@ -20,8 +20,12 @@
 
 package component
 
+import "github.com/echo766/pitaya/actor"
+
 // Component is the interface that represent a component.
 type Component interface {
+	actor.Actor
+
 	Init()
 	AfterInit()
 	BeforeShutdown()

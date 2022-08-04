@@ -83,11 +83,25 @@ func (app *App) startupComponents() {
 	if app.remoteService != nil {
 		app.remoteService.DumpServices()
 	}
+
+	// handle component start actor
+	for _, c := range app.handlerComp {
+		c.comp.Start()
+	}
+
+	// remote component start actor
+	for _, c := range app.remoteComp {
+		c.comp.Start()
+	}
 }
 
 func (app *App) shutdownComponents() {
 	// reverse call `BeforeShutdown` hooks
 	length := len(app.handlerComp)
+	for i := length - 1; i >= 0; i-- {
+		app.handlerComp[i].comp.Stop()
+	}
+
 	for i := length - 1; i >= 0; i-- {
 		app.handlerComp[i].comp.BeforeShutdown()
 	}
@@ -98,6 +112,10 @@ func (app *App) shutdownComponents() {
 	}
 
 	length = len(app.remoteComp)
+	for i := length - 1; i >= 0; i-- {
+		app.remoteComp[i].comp.Stop()
+	}
+
 	for i := length - 1; i >= 0; i-- {
 		app.remoteComp[i].comp.BeforeShutdown()
 	}

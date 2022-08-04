@@ -23,6 +23,7 @@ package pitaya
 import (
 	"fmt"
 
+	"github.com/echo766/pitaya/cluster"
 	"github.com/echo766/pitaya/interfaces"
 	"github.com/echo766/pitaya/logger"
 )
@@ -98,6 +99,12 @@ func (app *App) startModules() {
 	for _, modWrapper := range app.modulesArr {
 		modWrapper.module.AfterInit()
 		logger.Log.Infof("module: %s successfully loaded", modWrapper.name)
+	}
+
+	for _, m := range app.modulesArr {
+		if l, ok := m.module.(cluster.SDListener); ok {
+			app.serviceDiscovery.AddListener(l)
+		}
 	}
 }
 
