@@ -244,3 +244,7 @@ func SetDB(db *sqlx.DB) {
 func GetDB() *sqlx.DB {
 	return DefaultApp.GetDB()
 }
+
+func AddSDListener(listener cluster.SDListener) {
+	DefaultApp.AddSDListener(listener)
+}

@@ -130,6 +130,9 @@ func (m *MockPitaya) GetDB() *sqlx.DB {
 	return nil
 }
 
+func (app *MockPitaya) AddSDListener(listener cluster.SDListener) {
+}
+
 func (m *MockPitaya) SetDB(*sqlx.DB)  {
 }
 

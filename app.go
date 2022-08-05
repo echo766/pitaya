@@ -133,6 +133,7 @@ type Pitaya interface {
 
 	SetDB(db *sqlx.DB)
 	GetDB() *sqlx.DB
+	AddSDListener(listener cluster.SDListener)
 }
 
 // App is the base app struct
@@ -280,6 +281,10 @@ func (app *App) SetDB(db *sqlx.DB) {
 
 func (app *App) GetDB() *sqlx.DB {
 	return app.db
+}
+
+func (app *App) AddSDListener(listener cluster.SDListener) {
+	app.serviceDiscovery.AddListener(listener)
 }
 
 // SetLogger logger setter
