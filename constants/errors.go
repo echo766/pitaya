@@ -89,4 +89,5 @@ var (
 	ErrActorStopped                   = errors.New("actor stopped")
 	ErrInvalidRoute                   = errors.New("invalid route")
 	ErrPlayerNotLogin                 = errors.New("player not logged in")
+	ErrNoRemoteHandler                = errors.New("not found remote handler")
 )

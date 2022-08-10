@@ -121,14 +121,6 @@ func (h *HandlerService) Dispatch(thread int) {
 	for {
 		// Calls to remote servers block calls to local server
 		select {
-		case lm := <-h.chLocalProcess:
-			metrics.ReportMessageProcessDelayFromCtx(lm.ctx, h.metricsReporters, "local")
-			h.localProcess(lm.ctx, lm.agent, lm.route, lm.msg)
-
-		case rm := <-h.chRemoteProcess:
-			metrics.ReportMessageProcessDelayFromCtx(rm.ctx, h.metricsReporters, "remote")
-			h.remoteService.remoteProcess(rm.ctx, nil, rm.agent, rm.route, rm.msg)
-
 		case <-timer.GlobalTicker.C: // execute cron task
 			timer.Cron()
 
@@ -288,17 +280,11 @@ func (h *HandlerService) processMessage(a agent.Agent, msg *message.Message) {
 		r.SvType = h.server.Type
 	}
 
-	message := unhandledMessage{
-		ctx:   ctx,
-		agent: a,
-		route: r,
-		msg:   msg,
-	}
 	if r.SvType == h.server.Type {
-		h.chLocalProcess <- message
+		h.localProcess(ctx, a, r, msg)
 	} else {
 		if h.remoteService != nil {
-			h.chRemoteProcess <- message
+			h.remoteService.remoteProcess(ctx, nil, a, r, msg)
 		} else {
 			logger.Log.Warnf("request made to another server type but no remoteService running")
 		}

@@ -309,6 +309,43 @@ func processRemoteMessage(ctx context.Context, req *protos.Request, r *RemoteSer
 	}
 }
 
+func (r *RemoteService) RpcInner(ctx context.Context, reply proto.Message, arg proto.Message, rt *route.Route) error {
+	remote, ok := r.remotes[rt.Short()]
+	if !ok {
+		logger.Log.Warnf("pitaya/remote: %s not found", rt.Short())
+		return constants.ErrNoRemoteHandler
+	}
+
+	params := []reflect.Value{remote.Receiver, reflect.ValueOf(ctx)}
+	if remote.HasArgs {
+		params = append(params, reflect.ValueOf(arg))
+	}
+
+	ac, ok := remote.Receiver.Interface().(actor.Actor)
+	if !ok {
+		logger.Log.Warnf("pitaya/remote: remote isnot actor. %s", rt.String())
+	}
+
+	ret, err := ac.Exec(ctx, func() (interface{}, error) {
+		return util.Pcall(remote.Method, params)
+	})
+
+	if ret == nil || err != nil {
+		return err
+	}
+
+	pb, ok := ret.(proto.Message)
+	if !ok {
+		return fmt.Errorf("remote: invalid return type %T", ret)
+	}
+
+	data, err := proto.Marshal(pb)
+	if err != nil {
+		return err
+	}
+	return proto.Unmarshal(data, reply)
+}
+
 func (r *RemoteService) handleRPCUser(ctx context.Context, req *protos.Request, rt *route.Route) *protos.Response {
 	response := &protos.Response{}
 
