@@ -188,6 +188,10 @@ func suitableEventMethods(typ reflect.Type, nameFunc func(string) string) map[st
 			continue
 		}
 
+		if mt.In(1).Kind() != reflect.Ptr {
+			continue
+		}
+
 		methods[mt.In(1).Name()] = &Handler{
 			Method:      method,
 			IsRawArg:    false,
