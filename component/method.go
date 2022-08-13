@@ -188,7 +188,7 @@ func suitableEventMethods(typ reflect.Type, nameFunc func(string) string) map[st
 			continue
 		}
 
-		methods[mn] = &Handler{
+		methods[mt.In(1).Name()] = &Handler{
 			Method:      method,
 			IsRawArg:    false,
 			MessageType: message.Notify,

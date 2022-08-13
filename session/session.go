@@ -116,6 +116,7 @@ type Session interface {
 	GetDataEncoded() []byte
 	SetDataEncoded(encodedData []byte) error
 	SetFrontendData(frontendID string, frontendSessionID int64)
+	GetFrontendID() string
 	Bind(ctx context.Context, uid string) error
 	Kick(ctx context.Context) error
 	OnClose(c func()) error
@@ -369,6 +370,10 @@ func (s *sessionImpl) SetDataEncoded(encodedData []byte) error {
 func (s *sessionImpl) SetFrontendData(frontendID string, frontendSessionID int64) {
 	s.frontendID = frontendID
 	s.frontendSessionID = frontendSessionID
+}
+
+func (s *sessionImpl) GetFrontendID() string {
+	return s.frontendID
 }
 
 // Bind bind UID to current session
