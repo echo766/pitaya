@@ -153,7 +153,7 @@ networkentity-mock:
 	@mockgen github.com/echo766/pitaya/pkg/networkentity NetworkEntity | sed 's/mock_networkentity/mocks/' > networkentity/mocks/networkentity.go
 
 pitaya-mock:
-	@mockgen git.musketeer-ar.com/framework/pitaya Pitaya | sed 's/mock_v2/mocks/' > mocks/app.go
+	@mockgen github.com/echo766/pitaya/pkg Pitaya | sed 's/mock_v2/mocks/' > mocks/app.go
 
 serializer-mock:
 	@mockgen github.com/echo766/pitaya/pkg/serialize Serializer | sed 's/mock_serialize/mocks/' > serialize/mocks/serializer.go
