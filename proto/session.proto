@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "pkg/protos";
+
+message Session {
+  int64 id = 1;
+  string uid = 2;
+  bytes data = 3;
+}

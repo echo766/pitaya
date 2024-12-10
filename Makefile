@@ -12,7 +12,7 @@ setup-ci:
 
 setup-protobuf-macos:
 	@brew install protobuf
-	@go get github.com/golang/protobuf/protoc-gen-go
+	@go get google.golang.org/protobuf/cmd/protoc-gen-go
 
 run-chat-example:
 	@cd examples/testing && docker-compose up -d etcd nats && cd ../demo/chat/ && go run main.go
@@ -144,19 +144,23 @@ test-coverage-func coverage-func: test-coverage merge-profiles
 mocks: agent-mock session-mock networkentity-mock pitaya-mock serializer-mock acceptor-mock
 
 agent-mock:
-	@mockgen github.com/echo766/pitaya/agent Agent,AgentFactory | sed 's/mock_agent/mocks/' > agent/mocks/agent.go
+	@mockgen github.com/echo766/pitaya/pkg/agent Agent,AgentFactory | sed 's/mock_agent/mocks/' > agent/mocks/agent.go
 
 session-mock:
-	@mockgen github.com/echo766/pitaya/session Session,SessionPool | sed 's/mock_session/mocks/' > session/mocks/session.go
+	@mockgen github.com/echo766/pitaya/pkg/session Session,SessionPool | sed 's/mock_session/mocks/' > session/mocks/session.go
 
 networkentity-mock:
-	@mockgen github.com/echo766/pitaya/networkentity NetworkEntity | sed 's/mock_networkentity/mocks/' > networkentity/mocks/networkentity.go
+	@mockgen github.com/echo766/pitaya/pkg/networkentity NetworkEntity | sed 's/mock_networkentity/mocks/' > networkentity/mocks/networkentity.go
 
 pitaya-mock:
-	@mockgen github.com/echo766/pitaya Pitaya | sed 's/mock_v2/mocks/' > mocks/app.go
+	@mockgen git.musketeer-ar.com/framework/pitaya Pitaya | sed 's/mock_v2/mocks/' > mocks/app.go
 
 serializer-mock:
-	@mockgen github.com/echo766/pitaya/serialize Serializer | sed 's/mock_serialize/mocks/' > serialize/mocks/serializer.go
+	@mockgen github.com/echo766/pitaya/pkg/serialize Serializer | sed 's/mock_serialize/mocks/' > serialize/mocks/serializer.go
 
 acceptor-mock:
-	@mockgen github.com/echo766/pitaya/acceptor PlayerConn,Acceptor | sed 's/mock_acceptor/mocks/' > mocks/acceptor.go
+	@mockgen github.com/echo766/pitaya/pkg/acceptor PlayerConn,Acceptor | sed 's/mock_acceptor/mocks/' > mocks/acceptor.go
+
+pro:
+	protoc --go_out=. ./proto/**/*.proto
+	protoc --go_out=. --go-grpc_out=. ./proto/*.proto 

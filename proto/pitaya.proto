@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "pkg/protos";
+
+import "proto/request.proto";
+import "proto/response.proto";
+import "proto/push.proto";
+import "proto/bind.proto";
+import "proto/kick.proto";
+
+
+service Pitaya {
+  rpc Call(Request) returns (Response) {}
+  rpc PushToUser(Push) returns (Response) {}
+  rpc SessionBindRemote(BindMsg) returns (Response) {}
+  rpc KickUser(KickMsg) returns (KickAnswer) {}
+}

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package test;
+
+option go_package = "pkg/protos/test";
+
+message SomeStruct{
+  int32 A = 1;
+  string B = 2;
+}

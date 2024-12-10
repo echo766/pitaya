@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "pkg/protos";
+
+message Error {
+  string code = 1;
+  string msg = 2;
+  map<string, string> metadata = 3;
+}

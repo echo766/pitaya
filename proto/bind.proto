@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "pkg/protos";
+
+message BindMsg {
+  string uid = 1;
+  string fid = 2;
+}
