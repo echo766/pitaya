@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	pitaya "github.com/echo766/pitaya/pkg"
 	"github.com/echo766/pitaya/pkg/component"
 	"github.com/echo766/pitaya/pkg/logger"
-	"github.com/echo766/pitaya/pkg/timer"
 )
 
 type (
@@ -39,8 +39,7 @@ type (
 	Room struct {
 		component.Base
 
-		timer *timer.Timer
-		app   pitaya.Pitaya
+		app pitaya.Pitaya
 	}
 )
 
@@ -54,6 +53,14 @@ func (m *Room) Init() {
 	m.Base.Init()
 
 	logger.Log.Info("room component init")
+}
+
+func (r *Room) AfterInit() {
+
+	r.AddTimer(time.Second*10, true, func() {
+		count, err := r.app.GroupCountMembers(context.Background(), "room")
+		logger.Log.Infof("UserCount: Time=> %s, Count=> %d, Error=> %q", time.Now().String(), count, err)
+	})
 }
 
 // Join room

@@ -54,7 +54,7 @@ type (
 		OnEvent(Event, evtCallback)
 		EmitEvt(context.Context, Event, interface{})
 
-		AfterFunc(time.Duration, bool, func()) *timer.Timer
+		AddTimer(time.Duration, bool, func()) *timer.Timer
 		EnableParallel() //并发执行任务
 	}
 
@@ -137,7 +137,7 @@ func (a *Impl) closeTick() {
 }
 
 func (a *Impl) startTick() {
-	ticker := a.AfterFunc(TICK_INTERVAL, false, func() {
+	ticker := a.AddTimer(TICK_INTERVAL, false, func() {
 		if a.GetState() != ASF_RUN {
 			return
 		}
@@ -447,7 +447,7 @@ func (a *Impl) OnEvent(evt Event, cb evtCallback) {
 	a.evtFn[evt] = append(a.evtFn[evt], cb)
 }
 
-func (a *Impl) AfterFunc(d time.Duration, repeat bool, fn func()) *timer.Timer {
+func (a *Impl) AddTimer(d time.Duration, repeat bool, fn func()) *timer.Timer {
 	cb := func() {
 		a.Push(context.Background(), func() (interface{}, error) {
 			fn()
