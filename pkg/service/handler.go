@@ -240,15 +240,16 @@ func (h *HandlerService) processPacket(a agent.Agent, p *packet.Packet) error {
 			return fmt.Errorf("invalid handshake data. Id=%d", a.GetSession().ID())
 		}
 
-		needVersion, ok := h.clientVersion.Load(handshakeData.Sys.Platform)
-		if !ok {
-			return fmt.Errorf("invalid handshake data. client version not found. Id=%d", a.GetSession().ID())
-		}
+		// TODO: check client version
+		// needVersion, ok := h.clientVersion.Load(handshakeData.Sys.Platform)
+		// if ok {
+		// 	return fmt.Errorf("invalid handshake data. client version not found. Id=%d", a.GetSession().ID())
+		// }
 
 		code := 200
-		if handshakeData.Sys.ResVersion < needVersion.(int) {
-			code = 400
-		}
+		// if handshakeData.Sys.ResVersion < needVersion.(int) {
+		// 	code = 400
+		// }
 		if err := a.SendHandshakeResponse(code); err != nil {
 			logger.Log.Errorf("Error sending handshake response: %s", err.Error())
 			return err
